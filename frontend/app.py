@@ -39,6 +39,18 @@ st.markdown("""
         color: #1E3A8A;
         margin-bottom: 1rem;
     }
+    .license-expired-box {
+        background-color: #DC2626;
+        color: white;
+        padding: 1.5rem;
+        border-radius: 0.75rem;
+        margin: 1rem 0;
+        text-align: center;
+        font-size: 1.2rem;
+        font-weight: bold;
+        border: 3px solid #991B1B;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -52,11 +64,31 @@ def check_backend_health() -> bool:
         return False
 
 
+def show_license_expired_error():
+    """Display a prominent license expiration error box"""
+    st.markdown("""
+        <div class="license-expired-box">
+            🔒 Din licens har gått ut. Kontakta Nordic Secure.
+        </div>
+    """, unsafe_allow_html=True)
+
+
 def ingest_document(file) -> Optional[dict]:
     """Upload and ingest a PDF document"""
     try:
         files = {"file": (file.name, file, "application/pdf")}
         response = requests.post(f"{API_URL}/ingest", files=files, timeout=60)
+        
+        # Check for license errors
+        if response.status_code == 403:
+            error_data = response.json()
+            if "License Expired" in error_data.get("detail", ""):
+                show_license_expired_error()
+                return None
+            else:
+                st.error(f"License error: {error_data.get('detail', 'Unknown error')}")
+                return None
+        
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
@@ -72,6 +104,17 @@ def search_documents(query: str) -> Optional[dict]:
             json={"query": query},
             timeout=30
         )
+        
+        # Check for license errors
+        if response.status_code == 403:
+            error_data = response.json()
+            if "License Expired" in error_data.get("detail", ""):
+                show_license_expired_error()
+                return None
+            else:
+                st.error(f"License error: {error_data.get('detail', 'Unknown error')}")
+                return None
+        
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
