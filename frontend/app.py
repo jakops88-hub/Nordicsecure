@@ -81,12 +81,17 @@ def ingest_document(file) -> Optional[dict]:
         
         # Check for license errors
         if response.status_code == 403:
-            error_data = response.json()
-            if "License Expired" in error_data.get("detail", ""):
-                show_license_expired_error()
-                return None
-            else:
-                st.error(f"License error: {error_data.get('detail', 'Unknown error')}")
+            try:
+                error_data = response.json()
+                if "License Expired" in error_data.get("detail", ""):
+                    show_license_expired_error()
+                    return None
+                else:
+                    st.error(f"License error: {error_data.get('detail', 'Unknown error')}")
+                    return None
+            except ValueError:
+                # Response is not JSON
+                st.error("License error: Access forbidden. Contact support.")
                 return None
         
         response.raise_for_status()
@@ -107,12 +112,17 @@ def search_documents(query: str) -> Optional[dict]:
         
         # Check for license errors
         if response.status_code == 403:
-            error_data = response.json()
-            if "License Expired" in error_data.get("detail", ""):
-                show_license_expired_error()
-                return None
-            else:
-                st.error(f"License error: {error_data.get('detail', 'Unknown error')}")
+            try:
+                error_data = response.json()
+                if "License Expired" in error_data.get("detail", ""):
+                    show_license_expired_error()
+                    return None
+                else:
+                    st.error(f"License error: {error_data.get('detail', 'Unknown error')}")
+                    return None
+            except ValueError:
+                # Response is not JSON
+                st.error("License error: Access forbidden. Contact support.")
                 return None
         
         response.raise_for_status()

@@ -110,11 +110,14 @@ def save_keypair_to_file(private_key_b64: str, public_key_b64: str):
     """
     # Save private key (keep this secret!)
     private_key_path = "private_key.txt"
-    with open(private_key_path, "w") as f:
-        f.write(private_key_b64)
     
-    # Set restrictive permissions on private key (owner read/write only)
-    os.chmod(private_key_path, 0o600)
+    # Create file with restrictive permissions first (before writing sensitive data)
+    # This prevents a window where the file exists with default permissions
+    fd = os.open(private_key_path, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
+    try:
+        os.write(fd, private_key_b64.encode('utf-8'))
+    finally:
+        os.close(fd)
     
     print(f"✓ Private key saved to: {private_key_path}")
     print("  ⚠️  KEEP THIS FILE SECURE AND DO NOT COMMIT TO GIT!")
@@ -215,8 +218,10 @@ def main():
             print("2. Or save to file: echo '<license_string>' > license.key")
             print("\n" + "="*70)
             
-            # Save to file
-            license_filename = f"license_{args.customer.replace(' ', '_').lower()}_{args.expiration}.key"
+            # Save to file with sanitized filename
+            import re
+            safe_customer_name = re.sub(r'[^a-zA-Z0-9_-]', '_', args.customer.lower())
+            license_filename = f"license_{safe_customer_name}_{args.expiration}.key"
             with open(license_filename, "w") as f:
                 f.write(license_str)
             print(f"\n✓ License saved to: {license_filename}")

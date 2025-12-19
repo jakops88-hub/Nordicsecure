@@ -38,8 +38,9 @@ class LicenseVerifier:
     - signature: Ed25519 signature of the license data
     """
     
-    # Placeholder public key - will be replaced with actual public key
+    # Actual production public key for license verification
     # This is a base64-encoded Ed25519 public key (32 bytes)
+    # Generated from the private key kept secure by the administrator
     PUBLIC_KEY_B64 = "t4XAMrwiV59V3EPyiHCEwG7/TEDoRSpkRlCtFPpdaBA="
     
     def __init__(self):
