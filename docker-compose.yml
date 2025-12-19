@@ -11,6 +11,8 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - local-ai-net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -23,6 +25,8 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
+    networks:
+      - local-ai-net
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434"]
       interval: 10s
@@ -43,8 +47,25 @@ services:
         condition: service_healthy
       ollama:
         condition: service_healthy
-    volumes:
-      - ./backend:/app
+    networks:
+      - local-ai-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "8501:8501"
+    environment:
+      API_URL: http://backend:8000
+    depends_on:
+      - backend
+    networks:
+      - local-ai-net
+
+networks:
+  local-ai-net:
+    driver: bridge
 
 volumes:
   postgres_data:
