@@ -36,7 +36,7 @@ class LicenseVerifier:
     
     # Placeholder public key - will be replaced with actual public key
     # This is a base64-encoded Ed25519 public key (32 bytes)
-    PUBLIC_KEY_B64 = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    PUBLIC_KEY_B64 = "t4XAMrwiV59V3EPyiHCEwG7/TEDoRSpkRlCtFPpdaBA="
     
     def __init__(self):
         """Initialize the license verifier with the hardcoded public key."""
