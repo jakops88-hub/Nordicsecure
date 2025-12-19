@@ -12,3 +12,20 @@ pillow==10.1.0
 pdf2image==1.16.3
 requests==2.31.0
 numpy==1.26.2
+# Core PDF processing
+PyPDF2>=3.0.0
+
+# OCR support (optional, for scanned PDFs)
+pdf2image>=1.16.0
+pytesseract>=0.3.10
+
+# Vector embeddings
+sentence-transformers>=2.2.0
+torch>=2.0.0
+
+# Database with vector support
+psycopg2-binary>=2.9.0
+
+# Additional dependencies
+numpy>=1.24.0
+pillow>=10.0.0
