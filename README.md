@@ -4,16 +4,19 @@ Nordic Secure Private, offline RAG infrastructure for regulated industries. A so
 
 ## Features
 
+- **🎨 Streamlit Frontend**: User-friendly web interface for document upload and chat-based search
 - **PDF Document Ingestion**: Upload PDF files with automatic text extraction using PyPDF2 and OCR (Tesseract)
 - **Semantic Search**: Search documents using natural language queries with embeddings
 - **100% Local**: All processing happens locally using Ollama for embeddings
 - **Swedish OCR Support**: Full support for Swedish language documents with tesseract-ocr-swe
 - **Vector Search**: Fast similarity search using pgvector with cosine similarity
+- **🔒 IP Protection**: Backend compiled to binary using PyInstaller to protect source code
 - **Scalable**: Docker-based architecture with PostgreSQL and Ollama
 
 ## Architecture
 
-- **Backend**: FastAPI REST API with two main endpoints
+- **Frontend**: Streamlit web application with chat interface and file upload
+- **Backend**: FastAPI REST API compiled to binary (IP protected)
 - **Database**: PostgreSQL with pgvector extension for vector similarity search
 - **Embeddings**: Ollama (nomic-embed-text model) for generating document embeddings
 - **OCR**: Tesseract OCR with Swedish language support for scanning PDF documents
@@ -41,9 +44,20 @@ docker-compose up -d
 docker-compose exec ollama ollama pull nomic-embed-text
 ```
 
-4. The API will be available at `http://localhost:8000`
+4. Access the application:
+- **Frontend UI**: http://localhost:8501
+- **Backend API**: http://localhost:8000
 
-## API Endpoints
+## Using the Application
+
+### Web Interface (Recommended)
+
+1. Open http://localhost:8501 in your browser
+2. Use the sidebar to upload PDF documents
+3. Use the chat interface to search your documents
+4. View results with similarity scores and document excerpts
+
+### API Endpoints (Advanced)
 
 ### POST /ingest
 
@@ -103,13 +117,18 @@ Extended health check endpoint.
 
 ```
 Nordicsecure/
+├── frontend/
+│   ├── app.py               # Streamlit web interface
+│   ├── requirements.txt     # Frontend dependencies
+│   └── Dockerfile          # Frontend container
 ├── backend/
 │   ├── main.py              # FastAPI application with endpoints
 │   ├── database.py          # Database models and configuration
 │   ├── document_service.py  # Document processing and search service
 │   ├── requirements.txt     # Python dependencies
-│   └── Dockerfile          # Backend container with Tesseract
+│   └── Dockerfile          # Backend container with PyInstaller (IP protected)
 ├── docker-compose.yml       # Docker orchestration
+├── DEPLOY_GUIDE.md         # Deployment and customer delivery guide
 └── README.md
 ```
 
@@ -160,6 +179,13 @@ CREATE TABLE documents (
 - No data leakage to cloud services
 - Suitable for regulated industries requiring data sovereignty
 - Database and Ollama run in isolated Docker containers
+- **Backend source code protected** - Compiled to binary using PyInstaller
+
+## Deployment to Customers
+
+For instructions on building IP-protected images and delivering to customers, see **[DEPLOY_GUIDE.md](DEPLOY_GUIDE.md)**.
+
+The backend is compiled to a binary executable to protect proprietary code when delivering to customers.
 
 ## License
 

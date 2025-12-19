@@ -18,8 +18,8 @@ WORKDIR /build
 
 # Copy requirements and install all dependencies including PyInstaller
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install --no-cache-dir pyinstaller==6.3.0
+RUN pip install --no-cache-dir --trusted-host pypi.org --trusted-host files.pythonhosted.org -r requirements.txt
+RUN pip install --no-cache-dir --trusted-host pypi.org --trusted-host files.pythonhosted.org pyinstaller==6.3.0
 
 # Copy application source code
 COPY . .
