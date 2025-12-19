@@ -8,10 +8,14 @@ Licenses are signed with a private key and verified using a hardcoded public key
 import os
 import json
 import base64
+import logging
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.exceptions import InvalidSignature
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 
 class LicenseExpiredError(Exception):
@@ -74,7 +78,7 @@ class LicenseVerifier:
                     with open(license_path, "r") as f:
                         return f.read().strip()
                 except Exception as e:
-                    print(f"Warning: Failed to read license file {license_path}: {e}")
+                    logger.warning(f"Failed to read license file {license_path}: {e}")
         
         return None
     
@@ -95,7 +99,7 @@ class LicenseVerifier:
         except InvalidSignature:
             return False
         except Exception as e:
-            print(f"Signature verification error: {e}")
+            logger.warning(f"Signature verification error: {e}")
             return False
     
     def check_license(self) -> Dict[str, Any]:
