@@ -1,188 +1,88 @@
 import streamlit as st
 import requests
 import os
-from typing import Optional
+from datetime import datetime
 
-# Configuration
-API_URL = os.getenv("API_URL", "http://backend:8000")
+# Backend URL from environment variable or default
+BACKEND_URL = os.getenv("BACKEND_URL", "http://backend:8000")
 
-# Page configuration
-st.set_page_config(
-    page_title="Nordic Secure RAG",
-    page_icon="🔒",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="Nordic Secure License Manager", page_icon="🔐")
 
-# Custom CSS for better styling
-st.markdown("""
-    <style>
-    .main-header {
-        font-size: 2.5rem;
-        font-weight: bold;
-        color: #1E3A8A;
-        text-align: center;
-        padding: 1rem 0;
-    }
-    .status-badge {
-        display: inline-block;
-        padding: 0.5rem 1rem;
-        background-color: #10B981;
-        color: white;
-        border-radius: 0.5rem;
-        font-weight: bold;
-        text-align: center;
-    }
-    .sidebar-header {
-        font-size: 1.5rem;
-        font-weight: bold;
-        color: #1E3A8A;
-        margin-bottom: 1rem;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-
-def check_backend_health() -> bool:
-    """Check if the backend is accessible"""
+def check_license():
+    """Check license status with backend"""
     try:
-        response = requests.get(f"{API_URL}/health", timeout=3)
-        return response.status_code == 200
-    except:
-        return False
+        response = requests.get(f"{BACKEND_URL}/license/status", timeout=5)
+        if response.status_code == 200:
+            return response.json()
+        return {"valid": False, "message": "Could not verify license"}
+    except requests.exceptions.RequestException:
+        return {"valid": False, "message": "Backend connection failed"}
 
-
-def ingest_document(file) -> Optional[dict]:
-    """Upload and ingest a PDF document"""
-    try:
-        files = {"file": (file.name, file, "application/pdf")}
-        response = requests.post(f"{API_URL}/ingest", files=files, timeout=60)
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        st.error(f"Error ingesting document: {str(e)}")
-        return None
-
-
-def search_documents(query: str) -> Optional[dict]:
-    """Search for documents using a query"""
+def activate_license(license_key: str):
+    """Activate a license key"""
     try:
         response = requests.post(
-            f"{API_URL}/search",
-            json={"query": query},
-            timeout=30
+            f"{BACKEND_URL}/license/activate",
+            json={"license_key": license_key},
+            timeout=5
         )
-        response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        st.error(f"Error searching documents: {str(e)}")
-        return None
+        return {"success": False, "message": f"Connection error: {str(e)}"}
 
-
-# Main header
-st.markdown('<div class="main-header">🔒 Nordic Secure RAG</div>', unsafe_allow_html=True)
-st.markdown('<div style="text-align: center; margin-bottom: 2rem;"><span class="status-badge">System: Offline & Secure</span></div>', unsafe_allow_html=True)
-
-# Sidebar for file upload
-with st.sidebar:
-    st.markdown('<div class="sidebar-header">📄 Document Upload</div>', unsafe_allow_html=True)
+def main():
+    st.title("🔐 Nordic Secure License Manager")
     
-    # Backend status check
-    backend_status = check_backend_health()
-    if backend_status:
-        st.success("✅ Backend: Online")
-    else:
-        st.error("❌ Backend: Offline")
+    # Check license status
+    license_status = check_license()
     
-    st.markdown("---")
+    # Display license status
+    st.header("License Status")
     
-    # File uploader
-    uploaded_file = st.file_uploader(
-        "Upload PDF Document",
-        type=["pdf"],
-        help="Upload a PDF document to add it to the secure knowledge base"
-    )
-    
-    if uploaded_file is not None:
-        st.info(f"📁 Selected: {uploaded_file.name}")
+    if license_status.get("valid"):
+        st.success("✅ Active License")
         
-        if st.button("🚀 Ingest Document", use_container_width=True):
-            with st.spinner("Processing document..."):
-                result = ingest_document(uploaded_file)
-                if result:
-                    st.success(f"✅ {result.get('message', 'Document ingested successfully')}")
-                    st.info(f"Document ID: {result.get('document_id', 'N/A')}")
+        # Display license details
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Status", "Active")
+            if "customer_name" in license_status:
+                st.metric("Customer", license_status["customer_name"])
+        with col2:
+            if "expires_at" in license_status:
+                expires = datetime.fromisoformat(license_status["expires_at"].replace("Z", "+00:00"))
+                days_left = (expires - datetime.now(expires.tzinfo)).days
+                st.metric("Days Remaining", days_left)
+                st.metric("Expires", expires.strftime("%Y-%m-%d"))
+        
+        # Display features
+        if "features" in license_status and license_status["features"]:
+            st.subheader("Enabled Features")
+            for feature in license_status["features"]:
+                st.write(f"- {feature}")
+    else:
+        st.error("🔒 Your license has expired. Please contact Nordic Secure for renewal.")
+        
+    # License activation section
+    st.header("Activate License")
     
+    with st.form("license_form"):
+        license_key = st.text_input("Enter License Key", type="password")
+        submitted = st.form_submit_button("Activate")
+        
+        if submitted and license_key:
+            with st.spinner("Activating license..."):
+                result = activate_license(license_key)
+                
+                if result.get("success"):
+                    st.success("✅ License activated successfully!")
+                    st.rerun()
+                else:
+                    st.error(f"❌ Activation failed: {result.get('message', 'Unknown error')}")
+
+    # Footer
     st.markdown("---")
-    
-    # API Configuration
-    with st.expander("⚙️ API Configuration"):
-        st.text_input(
-            "API URL",
-            value=API_URL,
-            disabled=True,
-            help="Backend API endpoint (configured via environment variable)"
-        )
+    st.markdown("**Nordic Secure License Manager** | Secure Offline License Management")
 
-# Main content area - Chat interface
-st.markdown("### 💬 Search & Chat Interface")
-st.markdown("Ask questions about your ingested documents. The system will search for relevant information.")
-
-# Initialize chat history
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-# Display chat history
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-# Chat input
-if prompt := st.chat_input("Ask a question about your documents..."):
-    # Add user message to chat history
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    
-    # Display user message
-    with st.chat_message("user"):
-        st.markdown(prompt)
-    
-    # Search for relevant documents
-    with st.chat_message("assistant"):
-        with st.spinner("Searching documents..."):
-            search_result = search_documents(prompt)
-            
-            if search_result and search_result.get("results"):
-                results = search_result["results"]
-                
-                # Format response
-                response = f"Found {len(results)} relevant document(s):\n\n"
-                
-                for idx, doc in enumerate(results, 1):
-                    similarity = doc.get("similarity", 0)
-                    filename = doc.get("filename", "Unknown")
-                    content = doc.get("content", "")
-                    
-                    # Truncate content for display
-                    preview = content[:300] + "..." if len(content) > 300 else content
-                    
-                    response += f"**{idx}. {filename}** (Similarity: {similarity:.2%})\n\n"
-                    response += f"{preview}\n\n"
-                    response += "---\n\n"
-                
-                st.markdown(response)
-                
-                # Add assistant response to chat history
-                st.session_state.messages.append({"role": "assistant", "content": response})
-            else:
-                error_msg = "No relevant documents found. Please try a different query or upload more documents."
-                st.warning(error_msg)
-                st.session_state.messages.append({"role": "assistant", "content": error_msg})
-
-# Footer
-st.markdown("---")
-st.markdown(
-    '<div style="text-align: center; color: #6B7280; font-size: 0.875rem;">'
-    '🔒 All data processing happens locally. No external connections. Zero data leakage.'
-    '</div>',
-    unsafe_allow_html=True
-)
+if __name__ == "__main__":
+    main()

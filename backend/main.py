@@ -1,14 +1,19 @@
-from fastapi import FastAPI, File, UploadFile, Depends, HTTPException
+from fastapi import FastAPI, File, UploadFile, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from contextlib import asynccontextmanager
 import tempfile
 import os
+import logging
 from typing import List, Dict, Any
 
 from database import get_db, init_db
 from document_service import DocumentService
+from app.license_manager import get_license_verifier, LicenseExpiredError, LicenseInvalidError
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -27,6 +32,57 @@ app = FastAPI(
 
 # Initialize document service
 document_service = DocumentService()
+
+
+# License verification middleware
+@app.middleware("http")
+async def license_check_middleware(request: Request, call_next):
+    """
+    Middleware to check license before processing protected endpoints.
+    
+    Protected endpoints: /search, /ingest
+    Unprotected endpoints: /, /health
+    """
+    path = request.url.path
+    
+    # Allow health check and root endpoint without license
+    if path in ["/", "/health"]:
+        return await call_next(request)
+    
+    # Check license for protected endpoints
+    if path in ["/search", "/ingest"]:
+        try:
+            verifier = get_license_verifier()
+            verifier.check_license()
+        except LicenseExpiredError as e:
+            # Log full error details server-side
+            logger.warning(f"License expired: {str(e)}")
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "detail": "License Expired. Contact support to renew."
+                }
+            )
+        except LicenseInvalidError as e:
+            # Log full error details server-side
+            logger.warning(f"Invalid license: {str(e)}")
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "detail": "License Invalid. Contact support."
+                }
+            )
+        except Exception as e:
+            # Log full error details server-side
+            logger.error(f"License verification error: {str(e)}")
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "detail": "License verification failed. Contact support."
+                }
+            )
+    
+    return await call_next(request)
 
 
 class SearchRequest(BaseModel):
