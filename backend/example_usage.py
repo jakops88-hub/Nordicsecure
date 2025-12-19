@@ -1,14 +1,17 @@
 """
 Example usage of DocumentService for PDF parsing and document storage.
 This demonstrates the migrated functionality from the three legacy projects.
+
+Run with: python example_usage.py (from the backend directory)
 """
 
 import logging
 import sys
 import os
 
-# Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# For standalone execution, add app to path
+if __name__ == "__main__":
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from app.services import DocumentService
 from app.config import Config

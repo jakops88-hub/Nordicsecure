@@ -27,7 +27,6 @@ except ImportError:
 
 try:
     import psycopg2
-    from psycopg2.extras import execute_values
 except ImportError:
     psycopg2 = None
 

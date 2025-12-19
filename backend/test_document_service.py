@@ -1,13 +1,17 @@
 """
 Basic tests for DocumentService functionality.
 These tests verify the core logic without requiring external dependencies.
+
+Run with: python -m pytest test_document_service.py
+Or: python test_document_service.py
 """
 
 import sys
 import os
 
-# Add parent directory to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# For standalone execution, add app to path
+if __name__ == "__main__":
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from app.services import DocumentService
 

@@ -21,7 +21,7 @@ class Config:
     EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
     
     # Use local Ollama for embeddings (sovereign AI approach)
-    USE_OLLAMA = os.getenv("USE_OLLAMA", "true").lower() == "true"
+    USE_OLLAMA = os.getenv("USE_OLLAMA", "false").lower() == "true"
     OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
     OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "nomic-embed-text")
     
