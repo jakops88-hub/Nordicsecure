@@ -171,3 +171,22 @@ async def health_check():
         "service": "Nordicsecure RAG API",
         "version": "1.0.0"
     }
+
+
+if __name__ == "__main__":
+    import uvicorn
+    import sys
+    
+    # Default configuration
+    host = "0.0.0.0"
+    port = 8000
+    
+    # Parse command line arguments
+    for i, arg in enumerate(sys.argv):
+        if arg == "--host" and i + 1 < len(sys.argv):
+            host = sys.argv[i + 1]
+        elif arg == "--port" and i + 1 < len(sys.argv):
+            port = int(sys.argv[i + 1])
+    
+    # Run the application
+    uvicorn.run(app, host=host, port=port)
