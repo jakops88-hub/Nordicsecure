@@ -1,6 +1,6 @@
 FROM python:3.10-slim
 
-# VIKTIGT: Installera tesseract-ocr och libpq (för databasen)
+# IMPORTANT: Install tesseract-ocr and libpq (for database)
 RUN apt-get update && apt-get install -y \
     tesseract-ocr \
     tesseract-ocr-swe \

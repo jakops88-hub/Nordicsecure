@@ -2,12 +2,16 @@ import os
 import tempfile
 from typing import List, Dict, Any
 import requests
-from PyPDF2 import PdfReader
+from pypdf import PdfReader
 from pdf2image import convert_from_path
 import pytesseract
 from PIL import Image
 from sqlalchemy.orm import Session
 from database import Document
+
+
+# Configuration constants
+MIN_TEXT_LENGTH_FOR_DIGITAL_EXTRACTION = 100  # Minimum text length before falling back to OCR
 
 
 class DocumentService:
@@ -27,7 +31,7 @@ class DocumentService:
         text_content = []
         
         try:
-            # First, try to extract digital text using PyPDF2
+            # First, try to extract digital text using pypdf
             reader = PdfReader(pdf_path)
             for page in reader.pages:
                 page_text = page.extract_text()
@@ -35,7 +39,7 @@ class DocumentService:
                     text_content.append(page_text)
             
             # If no text was extracted, or very little, use OCR
-            if len(' '.join(text_content).strip()) < 100:
+            if len(' '.join(text_content).strip()) < MIN_TEXT_LENGTH_FOR_DIGITAL_EXTRACTION:
                 text_content = []
                 # Convert PDF to images
                 images = convert_from_path(pdf_path)

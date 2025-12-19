@@ -2,6 +2,7 @@ from fastapi import FastAPI, File, UploadFile, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from contextlib import asynccontextmanager
 import tempfile
 import os
 from typing import List, Dict, Any
@@ -9,10 +10,19 @@ from typing import List, Dict, Any
 from database import get_db, init_db
 from document_service import DocumentService
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize database on startup"""
+    init_db()
+    yield
+
+
 app = FastAPI(
     title="Nordicsecure RAG API",
     description="Private, offline RAG infrastructure for regulated industries",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # Initialize document service
@@ -31,12 +41,6 @@ class IngestResponse(BaseModel):
 
 class SearchResponse(BaseModel):
     results: List[Dict[str, Any]]
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize database on startup"""
-    init_db()
 
 
 @app.get("/")
