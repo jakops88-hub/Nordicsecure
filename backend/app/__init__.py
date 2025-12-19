@@ -1,0 +1,1 @@
+"""NordicSecure backend application."""
