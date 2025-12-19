@@ -422,7 +422,19 @@ class DocumentService:
     
     def _normalize_amount(self, amount: str) -> str:
         """Normalize amount string."""
-        return amount.replace(" ", "").replace(",", ".")
+        # Remove spaces first
+        amount = amount.replace(" ", "")
+        # Replace comma with dot (but keep existing dots)
+        # If there are multiple dots/commas, keep only the last one as decimal separator
+        if "," in amount:
+            # Replace comma with dot
+            amount = amount.replace(",", ".")
+        # Handle thousands separators: if multiple dots, remove all but last
+        parts = amount.split(".")
+        if len(parts) > 2:
+            # Multiple dots - treat all but last as thousands separators
+            amount = "".join(parts[:-1]) + "." + parts[-1]
+        return amount
     
     def _amount_to_number(self, amount: str) -> float:
         """Convert amount string to number."""
