@@ -5,11 +5,15 @@ from sqlalchemy.orm import Session
 from contextlib import asynccontextmanager
 import tempfile
 import os
+import logging
 from typing import List, Dict, Any
 
 from database import get_db, init_db
 from document_service import DocumentService
 from app.license_manager import get_license_verifier, LicenseExpiredError, LicenseInvalidError
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -52,7 +56,7 @@ async def license_check_middleware(request: Request, call_next):
             verifier.check_license()
         except LicenseExpiredError as e:
             # Log full error details server-side
-            print(f"License expired: {str(e)}")
+            logger.warning(f"License expired: {str(e)}")
             return JSONResponse(
                 status_code=403,
                 content={
@@ -61,7 +65,7 @@ async def license_check_middleware(request: Request, call_next):
             )
         except LicenseInvalidError as e:
             # Log full error details server-side
-            print(f"Invalid license: {str(e)}")
+            logger.warning(f"Invalid license: {str(e)}")
             return JSONResponse(
                 status_code=403,
                 content={
@@ -70,7 +74,7 @@ async def license_check_middleware(request: Request, call_next):
             )
         except Exception as e:
             # Log full error details server-side
-            print(f"License verification error: {str(e)}")
+            logger.error(f"License verification error: {str(e)}")
             return JSONResponse(
                 status_code=403,
                 content={

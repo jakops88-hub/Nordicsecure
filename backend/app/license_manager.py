@@ -8,7 +8,7 @@ Licenses are signed with a private key and verified using a hardcoded public key
 import os
 import json
 import base64
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.exceptions import InvalidSignature
@@ -142,13 +142,20 @@ class LicenseVerifier:
             
             # Check expiration date
             try:
-                expiration_date = datetime.fromisoformat(license_data["expiration_date"])
+                # Parse expiration date (assume UTC if no timezone specified)
+                expiration_date_str = license_data["expiration_date"]
+                expiration_date = datetime.fromisoformat(expiration_date_str)
+                
+                # If naive datetime (no timezone), assume UTC
+                if expiration_date.tzinfo is None:
+                    expiration_date = expiration_date.replace(tzinfo=timezone.utc)
             except ValueError as e:
                 raise LicenseInvalidError(
                     f"Invalid expiration date format. Expected ISO format (YYYY-MM-DD): {str(e)}"
                 )
             
-            current_date = datetime.utcnow()
+            # Get current time in UTC
+            current_date = datetime.now(timezone.utc)
             
             if current_date > expiration_date:
                 raise LicenseExpiredError(
