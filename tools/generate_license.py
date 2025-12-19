@@ -109,10 +109,16 @@ def save_keypair_to_file(private_key_b64: str, public_key_b64: str):
         public_key_b64: Base64-encoded public key
     """
     # Save private key (keep this secret!)
-    with open("private_key.txt", "w") as f:
+    private_key_path = "private_key.txt"
+    with open(private_key_path, "w") as f:
         f.write(private_key_b64)
-    print("✓ Private key saved to: private_key.txt")
+    
+    # Set restrictive permissions on private key (owner read/write only)
+    os.chmod(private_key_path, 0o600)
+    
+    print(f"✓ Private key saved to: {private_key_path}")
     print("  ⚠️  KEEP THIS FILE SECURE AND DO NOT COMMIT TO GIT!")
+    print(f"  File permissions set to 0600 (owner read/write only)")
     
     # Save public key (this goes into the application)
     with open("public_key.txt", "w") as f:

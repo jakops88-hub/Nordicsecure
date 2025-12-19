@@ -65,8 +65,7 @@ class LicenseVerifier:
         # Try license.key file
         license_file_paths = [
             "license.key",
-            "/app/license.key",
-            "/home/runner/work/Nordicsecure/Nordicsecure/backend/license.key"
+            "/app/license.key"
         ]
         
         for license_path in license_file_paths:
@@ -142,8 +141,14 @@ class LicenseVerifier:
                 raise LicenseInvalidError("Invalid license signature. License may be tampered with.")
             
             # Check expiration date
-            expiration_date = datetime.fromisoformat(license_data["expiration_date"])
-            current_date = datetime.now()
+            try:
+                expiration_date = datetime.fromisoformat(license_data["expiration_date"])
+            except ValueError as e:
+                raise LicenseInvalidError(
+                    f"Invalid expiration date format. Expected ISO format (YYYY-MM-DD): {str(e)}"
+                )
+            
+            current_date = datetime.utcnow()
             
             if current_date > expiration_date:
                 raise LicenseExpiredError(

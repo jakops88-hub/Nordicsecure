@@ -51,27 +51,30 @@ async def license_check_middleware(request: Request, call_next):
             verifier = get_license_verifier()
             verifier.check_license()
         except LicenseExpiredError as e:
+            # Log full error details server-side
+            print(f"License expired: {str(e)}")
             return JSONResponse(
                 status_code=403,
                 content={
-                    "detail": "License Expired. Contact support to renew.",
-                    "error": str(e)
+                    "detail": "License Expired. Contact support to renew."
                 }
             )
         except LicenseInvalidError as e:
+            # Log full error details server-side
+            print(f"Invalid license: {str(e)}")
             return JSONResponse(
                 status_code=403,
                 content={
-                    "detail": "License Invalid. Contact support.",
-                    "error": str(e)
+                    "detail": "License Invalid. Contact support."
                 }
             )
         except Exception as e:
+            # Log full error details server-side
+            print(f"License verification error: {str(e)}")
             return JSONResponse(
                 status_code=403,
                 content={
-                    "detail": "License verification failed. Contact support.",
-                    "error": str(e)
+                    "detail": "License verification failed. Contact support."
                 }
             )
     
