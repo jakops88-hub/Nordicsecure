@@ -10,7 +10,118 @@ BACKEND_URL = os.getenv("BACKEND_URL", "http://backend:8000")
 # Timeout for long-running batch operations (in seconds)
 TRIAGE_TIMEOUT = int(os.getenv("TRIAGE_TIMEOUT", "3600"))  # 1 hour default
 
-st.set_page_config(page_title="Nordic Secure RAG System", page_icon="🔐", layout="wide")
+st.set_page_config(page_title="Nordic Secure", page_icon="🔐", layout="wide")
+
+# Professional CSS styling - Clean Corporate Design
+st.markdown("""
+<style>
+    /* Hide Streamlit default elements */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* Clean corporate background */
+    .stApp {
+        background-color: #FFFFFF;
+    }
+    
+    /* Main content area styling */
+    .main .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+        max-width: 1200px;
+    }
+    
+    /* Button styling - minimal and consistent */
+    .stButton>button {
+        background-color: #2E5090;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 0.5rem 1.5rem;
+        font-weight: 500;
+        transition: background-color 0.3s ease;
+    }
+    
+    .stButton>button:hover {
+        background-color: #1E3A6F;
+        border: none;
+    }
+    
+    /* Primary button styling */
+    .stButton>button[kind="primary"] {
+        background-color: #2E5090;
+    }
+    
+    /* Input fields - clean borders */
+    .stTextInput>div>div>input,
+    .stTextArea>div>div>textarea,
+    .stNumberInput>div>div>input {
+        border: 1px solid #D1D5DB;
+        border-radius: 4px;
+        padding: 0.5rem;
+    }
+    
+    /* Tab styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 2rem;
+        border-bottom: 1px solid #E5E7EB;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        height: 3rem;
+        padding: 0 1.5rem;
+        color: #6B7280;
+        font-weight: 500;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        color: #2E5090;
+        border-bottom: 2px solid #2E5090;
+    }
+    
+    /* Sidebar styling */
+    [data-testid="stSidebar"] {
+        background-color: #F9FAFB;
+        border-right: 1px solid #E5E7EB;
+    }
+    
+    /* Headers */
+    h1, h2, h3 {
+        color: #1F2937;
+        font-weight: 600;
+    }
+    
+    /* Expander styling */
+    .streamlit-expanderHeader {
+        background-color: #F9FAFB;
+        border: 1px solid #E5E7EB;
+        border-radius: 4px;
+        font-weight: 500;
+    }
+    
+    /* File uploader */
+    [data-testid="stFileUploader"] {
+        border: 2px dashed #D1D5DB;
+        border-radius: 8px;
+        padding: 1rem;
+        background-color: #F9FAFB;
+    }
+    
+    /* Success/Error/Info messages */
+    .stSuccess, .stError, .stWarning, .stInfo {
+        border-radius: 4px;
+        padding: 1rem;
+    }
+    
+    /* Metrics */
+    [data-testid="stMetricValue"] {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: #2E5090;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 def check_license():
     """
@@ -152,113 +263,149 @@ def main():
     Main application function.
     
     Handles UI rendering, session state management, and user interactions.
+    Wrapped in try/except for friendly error handling.
     """
-    # Initialize session state variables
-    if 'language' not in st.session_state:
-        st.session_state.language = 'en'
-    
-    # Language selector in sidebar
-    st.sidebar.title("⚙️ Settings")
-    language = st.sidebar.selectbox(
-        "Language / Språk",
-        options=["en", "sv"],
-        format_func=lambda x: "English" if x == "en" else "Svenska"
-    )
-    
-    # Store language in session state
-    if 'language' not in st.session_state or st.session_state.language != language:
-        st.session_state.language = language
-    
-    # Get translations based on language
-    t = get_translations(language)
-    
-    st.title("🔐 Nordic Secure RAG System")
-    
-    # Check license status
-    license_status = check_license()
-    
-    # Display license status in sidebar
-    st.sidebar.header(t["license_status"])
-    if license_status.get("valid"):
-        st.sidebar.success(t["license_active"])
-    else:
-        st.sidebar.error(t["license_expired"])
-    
-    # License activation section in sidebar
-    with st.sidebar.expander(t["activate_license"]):
-        with st.form("license_form"):
-            license_key = st.text_input(t["license_key_label"], type="password")
-            submitted = st.form_submit_button(t["activate_button"])
-            
-            if submitted and license_key:
-                with st.spinner(t["activating"]):
-                    result = activate_license(license_key)
-                    
-                    if result.get("success"):
-                        st.success(t["activation_success"])
-                        st.rerun()
-                    else:
-                        st.error(f"{t['activation_failed']}: {result.get('message', 'Unknown error')}")
-    
-    # Create tabs
-    tab_chat, tab_upload, tab_triage = st.tabs([
-        t["tab_chat"],
-        t["tab_upload"],
-        t["tab_triage"]
-    ])
-    
-    # Tab 1: Chat/Search
-    with tab_chat:
-        st.header(t["chat_header"])
-        st.write(t["chat_description"])
+    try:
+        # Initialize session state variables
+        if 'language' not in st.session_state:
+            st.session_state.language = 'sv'  # Default to Swedish
         
-        query = st.text_input(t["search_query_label"], placeholder=t["search_query_placeholder"])
+        if 'has_documents' not in st.session_state:
+            st.session_state.has_documents = False
         
-        if st.button(t["search_button"]):
-            if query:
-                with st.spinner(t["searching"]):
-                    results = search_documents(query)
-                    
-                    if "error" in results:
-                        st.error(f"{t['error']}: {results['error']}")
-                    elif "results" in results and results["results"]:
-                        st.success(f"{t['found_results']}: {len(results['results'])}")
-                        
-                        for i, result in enumerate(results["results"], 1):
-                            with st.expander(f"📄 {t['result']} {i} - {result.get('metadata', {}).get('filename', 'Document')}"):
-                                st.write(f"**{t['similarity']}:** {result.get('distance', 'N/A')}")
-                                st.write(f"**{t['content']}:**")
-                                st.write(result.get("document", "")[:500] + "...")
-                    else:
-                        st.info(t["no_results"])
-            else:
-                st.warning(t["enter_query"])
-    
-    # Tab 2: Upload
-    with tab_upload:
-        st.header(t["upload_header"])
-        st.write(t["upload_description"])
-        
-        uploaded_file = st.file_uploader(
-            t["choose_file"],
-            type=["pdf"],
-            help=t["upload_help"]
+        # Language selector in sidebar
+        st.sidebar.title("⚙️ Inställningar")
+        language = st.sidebar.selectbox(
+            "Language / Språk",
+            options=["sv", "en"],
+            format_func=lambda x: "Svenska" if x == "sv" else "English"
         )
         
-        if uploaded_file is not None:
-            st.write(f"**{t['filename']}:** {uploaded_file.name}")
-            st.write(f"**{t['filesize']}:** {uploaded_file.size / 1024:.2f} KB")
+        # Store language in session state
+        if 'language' not in st.session_state or st.session_state.language != language:
+            st.session_state.language = language
+        
+        # Get translations based on language
+        t = get_translations(language)
+        
+        # Main title with cleaner presentation
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.title("🔐 Nordic Secure")
+            st.caption(t["app_subtitle"])
+        
+        # Welcome message if no documents uploaded yet
+        if not st.session_state.has_documents:
+            st.info(t["welcome_message"])
+        
+        # Check license status
+        with st.spinner(t["checking_license"]):
+            license_status = check_license()
+        
+        # Display license status in sidebar
+        st.sidebar.markdown("---")
+        st.sidebar.subheader(t["license_status"])
+        if license_status.get("valid"):
+            st.sidebar.success(t["license_active"])
+        else:
+            st.sidebar.warning(t["license_expired"])
+        
+        # License activation section in sidebar
+        with st.sidebar.expander(t["activate_license"]):
+            with st.form("license_form"):
+                license_key = st.text_input(t["license_key_label"], type="password")
+                submitted = st.form_submit_button(t["activate_button"])
+                
+                if submitted and license_key:
+                    with st.spinner(t["activating"]):
+                        result = activate_license(license_key)
+                        
+                        if result.get("success"):
+                            st.success(t["activation_success"])
+                            st.rerun()
+                        else:
+                            st.error(f"{t['activation_failed']}: {result.get('message', 'Unknown error')}")
+        
+        # Create tabs with better spacing
+        st.markdown("---")
+        tab_chat, tab_upload, tab_triage = st.tabs([
+            t["tab_chat"],
+            t["tab_upload"],
+            t["tab_triage"]
+        ])
+        
+        # Tab 1: Chat/Search
+        with tab_chat:
+            st.header(t["chat_header"])
+            st.write(t["chat_description"])
             
-            if st.button(t["upload_button"]):
-                with st.spinner(t["uploading"]):
-                    result = upload_document(uploaded_file.getvalue(), uploaded_file.name)
-                    
-                    if "error" in result:
-                        st.error(f"{t['error']}: {result['error']}")
-                    elif "document_id" in result:
-                        st.success(f"{t['upload_success']} ID: {result['document_id']}")
-                    else:
-                        st.warning(t["upload_unknown"])
+            # Use columns for better layout
+            col1, col2 = st.columns([4, 1])
+            with col1:
+                query = st.text_input(
+                    t["search_query_label"], 
+                    placeholder=t["search_query_placeholder"],
+                    label_visibility="collapsed"
+                )
+            with col2:
+                search_clicked = st.button(t["search_button"], use_container_width=True)
+            
+            if search_clicked:
+                if query:
+                    with st.spinner(t["searching"]):
+                        results = search_documents(query)
+                        
+                        if "error" in results:
+                            st.error(f"{t['error']}: {results['error']}")
+                        elif "results" in results and results["results"]:
+                            st.success(f"{t['found_results']}: {len(results['results'])}")
+                            
+                            for i, result in enumerate(results["results"], 1):
+                                with st.expander(f"📄 {t['result']} {i} - {result.get('metadata', {}).get('filename', 'Document')}"):
+                                    col1, col2 = st.columns([1, 4])
+                                    with col1:
+                                        st.metric(t['similarity'], f"{result.get('distance', 'N/A')}")
+                                    with col2:
+                                        st.write(f"**{t['content']}:**")
+                                        st.write(result.get("document", "")[:500] + "...")
+                        else:
+                            st.info(t["no_results"])
+                else:
+                    st.warning(t["enter_query"])
+        
+        # Tab 2: Upload
+        with tab_upload:
+            st.header(t["upload_header"])
+            st.write(t["upload_description"])
+            
+            uploaded_file = st.file_uploader(
+                t["choose_file"],
+                type=["pdf"],
+                help=t["upload_help"]
+            )
+            
+            if uploaded_file is not None:
+                # Display file info in columns
+                col1, col2, col3 = st.columns([2, 1, 1])
+                with col1:
+                    st.write(f"**{t['filename']}:** {uploaded_file.name}")
+                with col2:
+                    st.write(f"**{t['filesize']}:** {uploaded_file.size / 1024:.2f} KB")
+                with col3:
+                    upload_clicked = st.button(t["upload_button"], type="primary", use_container_width=True)
+                
+                if upload_clicked:
+                    with st.spinner(t["uploading"]):
+                        result = upload_document(uploaded_file.getvalue(), uploaded_file.name)
+                        
+                        if "error" in result:
+                            st.error(f"{t['error']}: {result['error']}")
+                        elif "document_id" in result:
+                            st.success(t["upload_success"])
+                            st.session_state.has_documents = True
+                            st.info(f"📋 {t['document_id']}: {result['document_id']}")
+                        else:
+                            st.warning(t["upload_unknown"])
     
     # Tab 3: Mass Sorting / Triage
     with tab_triage:
@@ -359,15 +506,32 @@ def main():
                             )
                     else:
                         st.warning(t["unknown_response"])
+    
+    except Exception as e:
+        # Friendly error handling - no stack traces for users
+        st.error(t["error_occurred"])
+        st.info(t["error_restart_message"])
+        
+        # Log error for debugging (still write to console/logs)
+        import traceback
+        print(f"Error in main UI: {e}")
+        print(traceback.format_exc())
 
 def get_translations(language: str) -> dict:
     """Get translations for specified language"""
     translations = {
         "en": {
+            # App
+            "app_subtitle": "Secure Document Management for Legal Professionals",
+            "welcome_message": "👋 Welcome to Nordic Secure. Upload documents to get started.",
+            "checking_license": "Verifying license...",
+            "error_occurred": "⚠️ An error occurred",
+            "error_restart_message": "Please try restarting the application.",
+            
             # License
             "license_status": "License Status",
             "license_active": "✅ Active License",
-            "license_expired": "🔒 License Expired",
+            "license_expired": "⚠️ License Required",
             "activate_license": "Activate License",
             "license_key_label": "License Key",
             "activate_button": "Activate",
@@ -376,20 +540,20 @@ def get_translations(language: str) -> dict:
             "activation_failed": "❌ Activation failed",
             
             # Tabs
-            "tab_chat": "💬 Chat",
+            "tab_chat": "💬 Search",
             "tab_upload": "📤 Upload",
-            "tab_triage": "🗂️ Mass Sorting",
+            "tab_triage": "🗂️ Batch Sorting",
             
             # Chat tab
-            "chat_header": "💬 Search Documents",
-            "chat_description": "Search through your uploaded documents using natural language queries.",
+            "chat_header": "💬 Document Search",
+            "chat_description": "Search through your documents using natural language.",
             "search_query_label": "Enter your search query",
             "search_query_placeholder": "e.g., What is the policy on data retention?",
             "search_button": "🔍 Search",
-            "searching": "Searching...",
+            "searching": "Searching documents...",
             "found_results": "Found results",
             "result": "Result",
-            "similarity": "Similarity",
+            "similarity": "Relevance",
             "content": "Content",
             "no_results": "No results found.",
             "enter_query": "Please enter a search query.",
@@ -397,71 +561,79 @@ def get_translations(language: str) -> dict:
             
             # Upload tab
             "upload_header": "📤 Upload Documents",
-            "upload_description": "Upload PDF documents to add them to your knowledge base.",
+            "upload_description": "Add PDF documents to your secure archive.",
             "choose_file": "Choose a PDF file",
             "upload_help": "Only PDF files are supported",
             "filename": "Filename",
             "filesize": "File size",
-            "upload_button": "📤 Upload Document",
-            "uploading": "Uploading and processing...",
+            "document_id": "Document ID",
+            "upload_button": "📤 Upload",
+            "uploading": "Processing document...",
             "upload_success": "✅ Document uploaded successfully!",
             "upload_unknown": "Upload completed with unknown status.",
             
             # Triage tab
-            "triage_title": "🗂️ AI Triage - Batch File Sorting",
-            "triage_description": "Automatically sort hundreds of unstructured files (PDF/Images) based on your criteria.",
-            "source_folder": "📁 Source Folder (Inbox)",
+            "triage_title": "🗂️ AI-Powered Batch Sorting",
+            "triage_description": "Automatically sort large volumes of documents based on your criteria.",
+            "source_folder": "📁 Source Folder",
             "source_folder_help": "Path to the folder containing files to sort",
             "target_relevant": "✅ Target Folder: Relevant",
             "target_relevant_help": "Path where relevant files will be moved",
-            "target_irrelevant": "❌ Target Folder: Irrelevant",
+            "target_irrelevant": "❌ Target Folder: Other",
             "target_irrelevant_help": "Path where non-relevant files will be moved",
             "max_pages_label": "Max Pages to Analyze",
-            "max_pages_help": "Limit OCR to first N pages to save time (recommended: 3-5)",
+            "max_pages_help": "Limit analysis to first N pages (recommended: 3-5)",
             "sorting_criteria": "📋 Sorting Criteria",
             "sorting_criteria_help": "Describe what makes a document relevant",
-            "sorting_criteria_placeholder": "E.g., Is this document related to a bankruptcy application or promissory note?",
+            "sorting_criteria_placeholder": "E.g., Is this document related to a bankruptcy application?",
             "start_sorting": "🚀 Start Sorting",
             "processing": "Processing files...",
             "complete": "✅ Sorting Complete!",
-            "live_log": "📋 Live Execution Log",
+            "live_log": "📋 Processing Log",
             "total_files": "Total Files",
             "relevant": "Relevant",
-            "irrelevant": "Irrelevant",
+            "irrelevant": "Other",
             "errors": "Errors",
-            "audit_log_title": "📊 Audit Log",
-            "download_log": "⬇️ Download Audit Log (CSV)",
+            "audit_log_title": "📊 Processing Report",
+            "download_log": "⬇️ Download Report (CSV)",
             "error_missing_paths": "Please provide all folder paths.",
             "error_no_criteria": "Please provide sorting criteria.",
             "unknown_response": "Unknown response from server.",
         },
         "sv": {
+            # App
+            "app_subtitle": "Säker Dokumenthantering för Jurister och Revisorer",
+            "welcome_message": "👋 Välkommen till Nordic Secure. Ladda upp dokument för att börja.",
+            "checking_license": "Kontrollerar licens...",
+            "error_occurred": "⚠️ Ett fel uppstod",
+            "error_restart_message": "Försök starta om applikationen.",
+            
             # License
             "license_status": "Licensstatus",
             "license_active": "✅ Aktiv Licens",
-            "license_expired": "🔒 Licens Utgången",
+            "license_expired": "⚠️ Licens Krävs",
             "activate_license": "Aktivera Licens",
             "license_key_label": "Licensnyckel",
             "activate_button": "Aktivera",
             "activating": "Aktiverar licens...",
-            "activation_success": "✅ Licens aktiverad!",
+            "activation_success": "✅ Licensen är nu aktiv!",
             "activation_failed": "❌ Aktivering misslyckades",
             
             # Tabs
-            "tab_chat": "💬 Chatt",
+            "tab_chat": "💬 Sök",
             "tab_upload": "📤 Ladda upp",
-            "tab_triage": "🗂️ Mass-sortering",
+            "tab_triage": "🗂️ Massbearbetning",
             
             # Chat tab
-            "chat_header": "💬 Sök Dokument",
-            "chat_description": "Sök genom dina uppladdade dokument med naturligt språk.",
-            "search_query_label": "Ange din sökfråga",
-            "search_query_placeholder": "t.ex. Vad är policyn för datalagring?",
+            "chat_header": "💬 Dokumentsökning",
+            "chat_description": "Sök i dina dokument med naturligt språk.",
+            "search_query_label": "Skriv din sökfråga",
+            "search_query_placeholder": "t.ex. Vilka regler gäller för datalagring?",
             "search_button": "🔍 Sök",
-            "searching": "Söker...",
+            "searching": "Söker i dokument...",
             "found_results": "Hittade resultat",
             "result": "Resultat",
-            "similarity": "Likhet",
+            "similarity": "Relevans",
             "content": "Innehåll",
             "no_results": "Inga resultat hittades.",
             "enter_query": "Vänligen ange en sökfråga.",
@@ -469,40 +641,41 @@ def get_translations(language: str) -> dict:
             
             # Upload tab
             "upload_header": "📤 Ladda upp Dokument",
-            "upload_description": "Ladda upp PDF-dokument för att lägga till dem i din kunskapsbas.",
+            "upload_description": "Lägg till PDF-dokument i ditt säkra arkiv.",
             "choose_file": "Välj en PDF-fil",
             "upload_help": "Endast PDF-filer stöds",
             "filename": "Filnamn",
             "filesize": "Filstorlek",
-            "upload_button": "📤 Ladda upp Dokument",
-            "uploading": "Laddar upp och bearbetar...",
-            "upload_success": "✅ Dokument uppladdat!",
+            "document_id": "Dokument-ID",
+            "upload_button": "📤 Ladda upp",
+            "uploading": "Bearbetar dokument...",
+            "upload_success": "✅ Dokumentet har laddats upp!",
             "upload_unknown": "Uppladdning slutförd med okänd status.",
             
             # Triage tab
-            "triage_title": "🗂️ AI Triage - Batch-sortering",
-            "triage_description": "Sortera automatiskt hundratals ostrukturerade filer (PDF/Bilder) baserat på dina kriterier.",
-            "source_folder": "📁 Källmapp (Inkorg)",
-            "source_folder_help": "Sökväg till mappen som innehåller filer att sortera",
+            "triage_title": "🗂️ AI-Driven Massbearbetning",
+            "triage_description": "Sortera automatiskt stora volymer dokument baserat på dina kriterier.",
+            "source_folder": "📁 Källmapp",
+            "source_folder_help": "Sökväg till mappen med filer som ska sorteras",
             "target_relevant": "✅ Målmapp: Träff",
             "target_relevant_help": "Sökväg dit relevanta filer kommer att flyttas",
             "target_irrelevant": "❌ Målmapp: Övrigt",
             "target_irrelevant_help": "Sökväg dit icke-relevanta filer kommer att flyttas",
             "max_pages_label": "Max Sidor att Analysera",
-            "max_pages_help": "Begränsa OCR till första N sidorna för att spara tid (rekommenderat: 3-5)",
+            "max_pages_help": "Begränsa analys till första N sidorna (rekommenderat: 3-5)",
             "sorting_criteria": "📋 Sorteringskriterier",
             "sorting_criteria_help": "Beskriv vad som gör ett dokument relevant",
-            "sorting_criteria_placeholder": "T.ex. Är detta dokument relaterat till en konkursansökan eller skuldebrev?",
-            "start_sorting": "🚀 Starta Sortering",
+            "sorting_criteria_placeholder": "T.ex. Är detta dokument relaterat till en konkursansökan?",
+            "start_sorting": "🚀 Starta Bearbetning",
             "processing": "Bearbetar filer...",
-            "complete": "✅ Sortering Klar!",
-            "live_log": "📋 Live Exekveringslogg",
+            "complete": "✅ Bearbetning Klar!",
+            "live_log": "📋 Bearbetningslogg",
             "total_files": "Totalt Filer",
-            "relevant": "Relevanta",
-            "irrelevant": "Irrelevanta",
+            "relevant": "Träffar",
+            "irrelevant": "Övrigt",
             "errors": "Fel",
-            "audit_log_title": "📊 Revisionslogg",
-            "download_log": "⬇️ Ladda ner Revisionslogg (CSV)",
+            "audit_log_title": "📊 Bearbetningsrapport",
+            "download_log": "⬇️ Ladda ner Rapport (CSV)",
             "error_missing_paths": "Vänligen ange alla mappsökvägar.",
             "error_no_criteria": "Vänligen ange sorteringskriterier.",
             "unknown_response": "Okänt svar från servern.",
