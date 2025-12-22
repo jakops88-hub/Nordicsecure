@@ -4,11 +4,14 @@ import os
 import tempfile
 import io
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Backend URL from environment variable or default
 BACKEND_URL = os.getenv("BACKEND_URL", "http://backend:8000")
+
+# Timeout for long-running batch operations (in seconds)
+TRIAGE_TIMEOUT = int(os.getenv("TRIAGE_TIMEOUT", "3600"))  # 1 hour default
 
 st.set_page_config(page_title="Nordic Secure RAG System", page_icon="🔐", layout="wide")
 
@@ -67,7 +70,7 @@ def start_triage(source_folder, target_relevant, target_irrelevant, criteria, ma
                 "criteria": criteria,
                 "max_pages": max_pages
             },
-            timeout=3600  # 1 hour timeout for batch processing
+            timeout=TRIAGE_TIMEOUT
         )
         return response.json()
     except Exception as e:
@@ -271,7 +274,7 @@ def main():
                             st.download_button(
                                 label=t["download_log"],
                                 data=csv,
-                                file_name=f"triage_audit_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                                file_name=f"triage_audit_log_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv",
                                 mime="text/csv"
                             )
                     else:

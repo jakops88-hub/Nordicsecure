@@ -31,6 +31,9 @@ class TriageService:
     # Maximum characters to send to LLM for classification (to avoid token limits)
     MAX_TEXT_LENGTH = 3000
     
+    # Supported file patterns (case variations)
+    PDF_PATTERNS = ['*.pdf', '*.PDF', '*.Pdf']
+    
     def __init__(
         self,
         document_service,
@@ -327,13 +330,15 @@ Does this document match the criteria? Respond in JSON format only."""
         target_relevant_path.mkdir(parents=True, exist_ok=True)
         target_irrelevant_path.mkdir(parents=True, exist_ok=True)
         
-        # Find all PDF files (case-insensitive using iglob)
+        # Find all PDF files (case-insensitive)
+        seen_files = set()
         pdf_files = []
-        for pattern in ['*.pdf', '*.PDF', '*.Pdf']:
-            pdf_files.extend(source_path.glob(pattern))
+        for pattern in self.PDF_PATTERNS:
+            for file_path in source_path.glob(pattern):
+                if file_path not in seen_files:
+                    seen_files.add(file_path)
+                    pdf_files.append(file_path)
         
-        # Remove duplicates (same file matched multiple times)
-        pdf_files = list(set(pdf_files))
         total_files = len(pdf_files)
         
         logger.info(f"Found {total_files} PDF files to process")
