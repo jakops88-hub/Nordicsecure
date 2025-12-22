@@ -145,26 +145,33 @@ class ServiceManager:
         """
         Clean up all processes when shutting down.
         Ensures Ollama and other processes are terminated properly.
+        Can be called multiple times safely (idempotent).
         """
+        # Prevent duplicate cleanup
+        if self.ollama_process is None:
+            return
+            
         logger.info("Cleaning up processes...")
         
         # Terminate Ollama process
-        if self.ollama_process is not None:
+        try:
+            logger.info(f"Terminating Ollama process (PID: {self.ollama_process.pid})...")
+            self.ollama_process.terminate()
+            
+            # Wait for graceful shutdown
             try:
-                logger.info(f"Terminating Ollama process (PID: {self.ollama_process.pid})...")
-                self.ollama_process.terminate()
-                
-                # Wait for graceful shutdown
-                try:
-                    self.ollama_process.wait(timeout=5)
-                    logger.info("Ollama process terminated gracefully")
-                except subprocess.TimeoutExpired:
-                    logger.warning("Ollama process did not terminate gracefully, killing...")
-                    self.ollama_process.kill()
-                    self.ollama_process.wait()
-                    logger.info("Ollama process killed")
-            except Exception as e:
-                logger.error(f"Error terminating Ollama process: {e}")
+                self.ollama_process.wait(timeout=5)
+                logger.info("Ollama process terminated gracefully")
+            except subprocess.TimeoutExpired:
+                logger.warning("Ollama process did not terminate gracefully, killing...")
+                self.ollama_process.kill()
+                self.ollama_process.wait()
+                logger.info("Ollama process killed")
+        except Exception as e:
+            logger.error(f"Error terminating Ollama process: {e}")
+        finally:
+            # Mark as cleaned up to prevent duplicate attempts
+            self.ollama_process = None
         
         logger.info("Cleanup complete")
         
@@ -317,8 +324,9 @@ def main():
                 f.write(f"FATAL STARTUP ERROR - {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
                 f.write(f"{'='*60}\n")
                 f.write(f"{traceback.format_exc()}\n")
-        except:
-            pass
+        except Exception as log_error:
+            # If we can't write to startup_error.log, at least log it to console
+            logger.error(f"Failed to write to startup_error.log: {log_error}")
         
         # Also write to debug.log for consistency
         try:
@@ -327,8 +335,9 @@ def main():
                 f.write(f"FATAL STARTUP ERROR\n")
                 f.write(f"{'='*60}\n")
                 f.write(f"{traceback.format_exc()}\n")
-        except:
-            pass
+        except Exception as log_error:
+            # If we can't write to debug.log either, at least we tried
+            logger.error(f"Failed to write to debug.log: {log_error}")
         
         return 1
     
