@@ -1,0 +1,44 @@
+# Streamlit Configuration for Nordic Secure Production Build
+# This configuration ensures the app runs smoothly as a .exe without prompts
+
+[global]
+# Disable usage statistics collection
+gatherUsageStats = false
+
+[server]
+# Server settings for headless operation
+headless = true
+port = 8501
+address = "127.0.0.1"
+enableCORS = false
+enableXsrfProtection = true
+
+[browser]
+# Disable server address display on startup
+serverAddress = "localhost"
+# Don't show email collection prompt
+serverPort = 8501
+
+[client]
+# Don't show welcome message in terminal
+showErrorDetails = false
+toolbarMode = "minimal"
+
+[runner]
+# Allow magic commands but don't show warnings
+magicEnabled = true
+# Don't display warnings about file watchers (not needed in .exe)
+fastReruns = true
+
+[theme]
+# Professional Nordic Secure theme
+primaryColor = "#2E5090"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F9FAFB"
+textColor = "#1F2937"
+font = "sans serif"
+
+[logger]
+# Reduce console noise
+level = "error"
+messageFormat = "%(asctime)s %(message)s"
