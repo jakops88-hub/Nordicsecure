@@ -29,22 +29,31 @@ echo '}'
 echo ""
 
 # 3. Search for documents
-echo -e "${GREEN}3. Search for Documents${NC}"
+echo -e "${GREEN}3. Search for Documents with Source Citations${NC}"
 echo "Command: curl -X POST \"${API_URL}/search\" \\"
 echo "  -H \"Content-Type: application/json\" \\"
 echo "  -d '{\"query\": \"what is the policy on data retention?\"}'"
 echo ""
-echo "Expected Response:"
+echo "Expected Response (with source citations):"
 echo '{'
 echo '  "results": ['
 echo '    {'
-echo '      "id": 1,'
-echo '      "filename": "policy.pdf",'
-echo '      "content": "...(document text)...",'
-echo '      "similarity": 0.85'
+echo '      "id": "doc_20241220_page5_abc123",'
+echo '      "document": "Full page text...",'
+echo '      "metadata": {'
+echo '        "filename": "policy.pdf",'
+echo '        "page_number": 5,'
+echo '        "total_pages": 20'
+echo '      },'
+echo '      "distance": 0.15,'
+echo '      "page": 5,'
+echo '      "row": 12,'
+echo '      "matched_line": "Data retention policy: 7 years for financial records"'
 echo '    }'
 echo '  ]'
 echo '}'
+echo ""
+echo "Note: Use 'page' and 'row' fields to verify information in the original document!"
 echo ""
 
 # 4. API Documentation
