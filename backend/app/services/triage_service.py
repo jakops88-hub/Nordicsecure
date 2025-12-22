@@ -16,6 +16,9 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+# Constants
+MAX_DUPLICATE_FILE_ATTEMPTS = 10000  # Safety limit for file collision handling
+
 
 class TriageService:
     """
@@ -133,19 +136,30 @@ Does this document match the criteria? Respond in JSON format only."""
                     logger.warning(f"JSON parse error (attempt {attempt + 1}): {e}")
                     
                     # Try to extract JSON from text that may have extra content
-                    # Look for JSON object between { and }
+                    # Use a more robust approach: find first { and match closing }
                     try:
-                        json_match = re.search(r'\{[^{}]*"is_relevant"[^{}]*\}', response_text, re.DOTALL)
-                        if json_match:
-                            json_str = json_match.group(0)
-                            classification = json.loads(json_str)
-                            if "is_relevant" in classification and "reason" in classification:
-                                logger.info("Successfully extracted JSON from embedded text")
-                                return {
-                                    "is_relevant": bool(classification["is_relevant"]),
-                                    "reason": str(classification["reason"])
-                                }
-                    except (json.JSONDecodeError, AttributeError) as extract_error:
+                        # Find the first opening brace
+                        start_idx = response_text.find('{')
+                        if start_idx != -1:
+                            # Track brace depth to find matching closing brace
+                            depth = 0
+                            for i in range(start_idx, len(response_text)):
+                                if response_text[i] == '{':
+                                    depth += 1
+                                elif response_text[i] == '}':
+                                    depth -= 1
+                                    if depth == 0:
+                                        # Found matching closing brace
+                                        json_str = response_text[start_idx:i+1]
+                                        classification = json.loads(json_str)
+                                        if "is_relevant" in classification and "reason" in classification:
+                                            logger.info("Successfully extracted JSON from embedded text")
+                                            return {
+                                                "is_relevant": bool(classification["is_relevant"]),
+                                                "reason": str(classification["reason"])
+                                            }
+                                        break
+                    except (json.JSONDecodeError, AttributeError, ValueError) as extract_error:
                         logger.debug(f"Could not extract JSON from text: {extract_error}")
                     
                     if attempt < max_retries:
@@ -221,7 +235,7 @@ Does this document match the criteria? Respond in JSON format only."""
                 counter += 1
                 
                 # Safety check to prevent infinite loop
-                if counter > 10000:
+                if counter > MAX_DUPLICATE_FILE_ATTEMPTS:
                     raise IOError(f"Too many files with similar names in {target_dir}")
         
         # Move file with error handling

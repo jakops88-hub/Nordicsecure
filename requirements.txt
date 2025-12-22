@@ -10,8 +10,7 @@ streamlit>=1.28.0
 pydantic>=2.5.2
 pydantic-settings>=2.1.0
 
-# PDF processing
-PyPDF2>=3.0.0
+# PDF processing (pypdf is the successor to PyPDF2)
 pypdf>=3.17.4
 pytesseract>=0.3.10
 pillow>=10.1.0

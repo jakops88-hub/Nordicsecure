@@ -904,4 +904,3 @@ class DocumentService:
         except Exception as e:
             logger.error(f"ChromaDB search failed: {e}", exc_info=True)
             raise RuntimeError(f"Search operation failed: {str(e)}") from e
-            raise
