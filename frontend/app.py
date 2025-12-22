@@ -15,7 +15,12 @@ st.set_page_config(page_title="Nordic Secure", page_icon="🔐", layout="wide")
 # Professional CSS styling - Clean Corporate Design
 st.markdown("""
 <style>
-    /* Hide Streamlit default elements */
+    /* Hide Streamlit default elements using data-testid for reliability */
+    [data-testid="stHeader"] {visibility: hidden;}
+    [data-testid="stToolbar"] {visibility: hidden;}
+    section[data-testid="stSidebar"] > div:first-child {padding-top: 1rem;}
+    
+    /* Fallback for older Streamlit versions */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
@@ -46,11 +51,6 @@ st.markdown("""
     .stButton>button:hover {
         background-color: #1E3A6F;
         border: none;
-    }
-    
-    /* Primary button styling */
-    .stButton>button[kind="primary"] {
-        background-color: #2E5090;
     }
     
     /* Input fields - clean borders */
@@ -509,8 +509,13 @@ def main():
     
     except Exception as e:
         # Friendly error handling - no stack traces for users
-        st.error(t["error_occurred"])
-        st.info(t["error_restart_message"])
+        try:
+            st.error(t.get("error_occurred", "⚠️ Ett fel uppstod"))
+            st.info(t.get("error_restart_message", "Försök starta om applikationen."))
+        except:
+            # Fallback if translations not available
+            st.error("⚠️ Ett fel uppstod")
+            st.info("Försök starta om applikationen.")
         
         # Log error for debugging (still write to console/logs)
         import traceback
