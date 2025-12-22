@@ -4,6 +4,7 @@ Analyzes files against user criteria and sorts them into folders
 """
 
 import os
+import re
 import shutil
 import json
 import logging
@@ -14,6 +15,9 @@ import pandas as pd
 import requests
 
 logger = logging.getLogger(__name__)
+
+# Constants
+MAX_DUPLICATE_FILE_ATTEMPTS = 10000  # Safety limit for file collision handling
 
 
 class TriageService:
@@ -73,15 +77,17 @@ class TriageService:
             - reason: str (explanation from AI)
             - confidence: float (optional)
         """
-        system_prompt = """You are a document classification assistant. Your task is to analyze documents and determine if they match the given criteria.
-
-IMPORTANT: You MUST respond with valid JSON only. No additional text before or after the JSON.
-
-Response format:
-{
-  "is_relevant": true/false,
-  "reason": "Brief explanation of why the document is or isn't relevant"
-}"""
+        system_prompt = (
+            "You are a document classification assistant. "
+            "Your task is to analyze documents and determine if they match the given criteria.\n\n"
+            "IMPORTANT: You MUST respond with valid JSON only. "
+            "No additional text before or after the JSON.\n\n"
+            "Response format:\n"
+            "{\n"
+            '  "is_relevant": true/false,\n'
+            '  "reason": "Brief explanation of why the document is or isn\'t relevant"\n'
+            "}"
+        )
         
         user_prompt = f"""Classification Criteria: {criteria}
 
@@ -110,8 +116,9 @@ Does this document match the criteria? Respond in JSON format only."""
                 # Extract response text
                 response_text = result.get("response", "")
                 
-                # Parse JSON response
+                # Parse JSON response with robust extraction
                 try:
+                    # Try direct JSON parsing first
                     classification = json.loads(response_text)
                     
                     # Validate response structure
@@ -127,9 +134,38 @@ Does this document match the criteria? Respond in JSON format only."""
                 
                 except json.JSONDecodeError as e:
                     logger.warning(f"JSON parse error (attempt {attempt + 1}): {e}")
+                    
+                    # Try to extract JSON from text that may have extra content
+                    # Use a more robust approach: find first { and match closing }
+                    try:
+                        # Find the first opening brace
+                        start_idx = response_text.find('{')
+                        if start_idx != -1:
+                            # Track brace depth to find matching closing brace
+                            depth = 0
+                            for i in range(start_idx, len(response_text)):
+                                if response_text[i] == '{':
+                                    depth += 1
+                                elif response_text[i] == '}':
+                                    depth -= 1
+                                    if depth == 0:
+                                        # Found matching closing brace
+                                        json_str = response_text[start_idx:i+1]
+                                        classification = json.loads(json_str)
+                                        if "is_relevant" in classification and "reason" in classification:
+                                            logger.info("Successfully extracted JSON from embedded text")
+                                            return {
+                                                "is_relevant": bool(classification["is_relevant"]),
+                                                "reason": str(classification["reason"])
+                                            }
+                                        break
+                    except (json.JSONDecodeError, AttributeError, ValueError) as extract_error:
+                        logger.debug(f"Could not extract JSON from text: {extract_error}")
+                    
                     if attempt < max_retries:
                         continue
-                    # Fallback: try to extract boolean from text
+                    
+                    # Final fallback: try to extract boolean from text
                     response_lower = response_text.lower()
                     is_relevant = "true" in response_lower or "yes" in response_lower
                     return {
@@ -176,8 +212,14 @@ Does this document match the criteria? Respond in JSON format only."""
             
         Returns:
             Path where file was moved
+            
+        Raises:
+            IOError: If file cannot be moved
         """
-        target_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            target_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            raise IOError(f"Failed to create target directory {target_dir}: {str(e)}") from e
         
         target_path = target_dir / source_path.name
         
@@ -191,10 +233,17 @@ Does this document match the criteria? Respond in JSON format only."""
                 new_name = f"{stem}_{counter}{suffix}"
                 target_path = target_dir / new_name
                 counter += 1
+                
+                # Safety check to prevent infinite loop
+                if counter > MAX_DUPLICATE_FILE_ATTEMPTS:
+                    raise IOError(f"Too many files with similar names in {target_dir}")
         
-        # Move file
-        shutil.move(str(source_path), str(target_path))
-        logger.info(f"Moved {source_path.name} to {target_path}")
+        # Move file with error handling
+        try:
+            shutil.move(str(source_path), str(target_path))
+            logger.info(f"Moved {source_path.name} to {target_path}")
+        except (IOError, OSError, shutil.Error) as e:
+            raise IOError(f"Failed to move {source_path.name} to {target_path}: {str(e)}") from e
         
         return target_path
     
@@ -228,16 +277,27 @@ Does this document match the criteria? Respond in JSON format only."""
         timestamp = datetime.now().isoformat()
         
         try:
-            # Read file content
-            with open(file_path, 'rb') as f:
-                file_content = f.read()
+            # Read file content with error handling
+            try:
+                with open(file_path, 'rb') as f:
+                    file_content = f.read()
+            except IOError as io_error:
+                raise IOError(f"Failed to read file {filename}: {str(io_error)}") from io_error
+            except Exception as read_error:
+                raise Exception(f"Unexpected error reading file {filename}: {str(read_error)}") from read_error
             
             # Extract text with max_pages limit for lazy loading
-            parsed_data = self.document_service.parse_pdf(
-                file_content,
-                filename=filename,
-                max_pages=max_pages
-            )
+            try:
+                parsed_data = self.document_service.parse_pdf(
+                    file_content,
+                    filename=filename,
+                    max_pages=max_pages
+                )
+            except ValueError as pdf_error:
+                # Re-raise with more context (encrypted PDF, empty file, etc.)
+                raise ValueError(f"PDF parsing error for {filename}: {str(pdf_error)}") from pdf_error
+            except Exception as parse_error:
+                raise Exception(f"Failed to parse PDF {filename}: {str(parse_error)}") from parse_error
             
             # Get text from parsed pages
             pages = parsed_data.get("pages", [])
@@ -254,8 +314,11 @@ Does this document match the criteria? Respond in JSON format only."""
             target_dir = target_relevant if is_relevant else target_irrelevant
             decision = "relevant" if is_relevant else "irrelevant"
             
-            # Move file
-            moved_path = self.safe_move_file(file_path, target_dir)
+            # Move file with error handling
+            try:
+                moved_path = self.safe_move_file(file_path, target_dir)
+            except (IOError, OSError) as move_error:
+                raise Exception(f"Failed to move file {filename}: {str(move_error)}") from move_error
             
             result = {
                 "filename": filename,

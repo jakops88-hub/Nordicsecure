@@ -2,7 +2,6 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
-import tempfile
 import os
 import logging
 from typing import List, Dict, Any, Optional
@@ -23,31 +22,44 @@ triage_service = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize database and services on startup"""
+    """
+    Initialize database and services on startup.
+    
+    Implements robust error handling to prevent silent failures.
+    """
     global document_service, triage_service
     
-    # Initialize ChromaDB
-    init_db()
-    
-    # Get ChromaDB collection
-    collection = get_db()
-    
-    # Initialize document service with collection
-    document_service = DocumentService(collection=collection)
-    logger.info("Document service initialized with ChromaDB")
-    
-    # Initialize triage service
-    triage_service = TriageService(
-        document_service=document_service,
-        ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11435"),
-        model_name=os.getenv("OLLAMA_MODEL", "llama3")
-    )
-    logger.info("Triage service initialized")
+    try:
+        # Initialize ChromaDB
+        logger.info("Initializing ChromaDB...")
+        init_db()
+        
+        # Get ChromaDB collection
+        collection = get_db()
+        
+        # Initialize document service with collection
+        document_service = DocumentService(collection=collection)
+        logger.info("Document service initialized with ChromaDB")
+        
+        # Initialize triage service
+        triage_service = TriageService(
+            document_service=document_service,
+            ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11435"),
+            model_name=os.getenv("OLLAMA_MODEL", "llama3")
+        )
+        logger.info("Triage service initialized")
+        
+    except Exception as e:
+        logger.error(f"Failed to initialize services: {e}", exc_info=True)
+        raise RuntimeError(f"Service initialization failed: {e}") from e
     
     yield
     
     # Cleanup on shutdown
-    logger.info("Shutting down application")
+    try:
+        logger.info("Shutting down application")
+    except Exception as e:
+        logger.error(f"Error during shutdown: {e}", exc_info=True)
 
 
 app = FastAPI(
