@@ -1,7 +1,8 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-PyInstaller spec file for Nordic Secure
+PyInstaller spec file for Nordic Secure - Golden Master Production Build
 Builds a standalone Windows executable with all dependencies bundled.
+Includes pandas, openpyxl, and all required services.
 """
 
 import os
@@ -16,6 +17,14 @@ datas = []
 # Include backend and frontend as data directories
 datas += [('backend', 'backend')]
 datas += [('frontend', 'frontend')]
+
+# Include locales directory if it exists (for language support)
+if os.path.exists('locales'):
+    datas += [('locales', 'locales')]
+
+# Include .streamlit configuration if it exists
+if os.path.exists('.streamlit'):
+    datas += [('.streamlit', '.streamlit')]
 
 # Include sentence-transformers models cache (if exists)
 # Users may need to download models first: sentence-transformers will do this on first run
@@ -33,6 +42,18 @@ except Exception:
 # Include Streamlit data files
 try:
     datas += collect_data_files('streamlit')
+except Exception:
+    pass
+
+# Include Altair data files (used by Streamlit for charts)
+try:
+    datas += collect_data_files('altair')
+except Exception:
+    pass
+
+# Include pandas data files
+try:
+    datas += collect_data_files('pandas')
 except Exception:
     pass
 
@@ -61,6 +82,8 @@ hiddenimports = [
     'streamlit',
     'streamlit.web',
     'streamlit.web.cli',
+    'streamlit.runtime',
+    'streamlit.runtime.scriptrunner',
     
     # ChromaDB
     'chromadb',
@@ -82,6 +105,27 @@ hiddenimports = [
     'PIL',
     'PIL._imaging',
     
+    # Data processing - pandas and openpyxl (required for triage_service)
+    'pandas',
+    'pandas._libs',
+    'pandas._libs.tslibs',
+    'pandas.io',
+    'pandas.io.formats',
+    'pandas.io.excel',
+    'openpyxl',
+    'openpyxl.cell',
+    'openpyxl.styles',
+    'openpyxl.worksheet',
+    
+    # Altair (used by Streamlit for charts)
+    'altair',
+    'altair.vegalite',
+    'altair.vegalite.v5',
+    
+    # PyArrow (used by pandas for parquet files)
+    'pyarrow',
+    'pyarrow.parquet',
+    
     # Other dependencies
     'numpy',
     'numpy.core',
@@ -90,9 +134,8 @@ hiddenimports = [
     'pydantic',
     'pydantic_core',
     
-    # Multiprocessing support
-    'multiprocessing',
-    'multiprocessing.spawn',
+    # Threading support
+    'threading',
 ]
 
 # Collect submodules for packages with plugins
@@ -111,6 +154,16 @@ try:
 except Exception:
     pass
 
+try:
+    hiddenimports += collect_submodules('pandas')
+except Exception:
+    pass
+
+try:
+    hiddenimports += collect_submodules('altair')
+except Exception:
+    pass
+
 # Analysis
 a = Analysis(
     ['main_launcher.py'],
@@ -120,16 +173,17 @@ a = Analysis(
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[],
+    runtime_hooks=['hook-streamlit.py'],
     excludes=[
         # Exclude unnecessary packages to reduce size
         'matplotlib',
         'scipy',
-        'pandas',
         'jupyter',
         'notebook',
         'IPython',
         'sphinx',
+        'pytest',
+        'setuptools',
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
