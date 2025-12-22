@@ -4,6 +4,7 @@ Analyzes files against user criteria and sorts them into folders
 """
 
 import os
+import re
 import shutil
 import json
 import logging
@@ -110,8 +111,9 @@ Does this document match the criteria? Respond in JSON format only."""
                 # Extract response text
                 response_text = result.get("response", "")
                 
-                # Parse JSON response
+                # Parse JSON response with robust extraction
                 try:
+                    # Try direct JSON parsing first
                     classification = json.loads(response_text)
                     
                     # Validate response structure
@@ -127,9 +129,27 @@ Does this document match the criteria? Respond in JSON format only."""
                 
                 except json.JSONDecodeError as e:
                     logger.warning(f"JSON parse error (attempt {attempt + 1}): {e}")
+                    
+                    # Try to extract JSON from text that may have extra content
+                    # Look for JSON object between { and }
+                    try:
+                        json_match = re.search(r'\{[^{}]*"is_relevant"[^{}]*\}', response_text, re.DOTALL)
+                        if json_match:
+                            json_str = json_match.group(0)
+                            classification = json.loads(json_str)
+                            if "is_relevant" in classification and "reason" in classification:
+                                logger.info("Successfully extracted JSON from embedded text")
+                                return {
+                                    "is_relevant": bool(classification["is_relevant"]),
+                                    "reason": str(classification["reason"])
+                                }
+                    except (json.JSONDecodeError, AttributeError) as extract_error:
+                        logger.debug(f"Could not extract JSON from text: {extract_error}")
+                    
                     if attempt < max_retries:
                         continue
-                    # Fallback: try to extract boolean from text
+                    
+                    # Final fallback: try to extract boolean from text
                     response_lower = response_text.lower()
                     is_relevant = "true" in response_lower or "yes" in response_lower
                     return {
