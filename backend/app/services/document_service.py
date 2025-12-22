@@ -113,7 +113,7 @@ class DocumentService:
         else:
             logger.warning(f"Tesseract not found at: {tesseract_path}. Will use system default.")
     
-    def parse_pdf(self, file: bytes, filename: str = "document.pdf") -> Dict[str, Any]:
+    def parse_pdf(self, file: bytes, filename: str = "document.pdf", max_pages: Optional[int] = None) -> Dict[str, Any]:
         """
         Parse a PDF file and extract text, tables, and metadata.
         
@@ -126,6 +126,7 @@ class DocumentService:
         Args:
             file: PDF file as bytes
             filename: Name of the file
+            max_pages: Optional limit on number of pages to extract (for lazy loading)
             
         Returns:
             Dictionary containing:
@@ -150,7 +151,10 @@ class DocumentService:
             pdf_reader = PyPDF2.PdfReader(io.BytesIO(file))
             page_count = len(pdf_reader.pages)
             
-            for i, page in enumerate(pdf_reader.pages):
+            # Limit pages if max_pages is specified
+            pages_to_extract = page_count if max_pages is None else min(max_pages, page_count)
+            
+            for i, page in enumerate(pdf_reader.pages[:pages_to_extract]):
                 page_text = page.extract_text() or ""
                 pages.append({
                     "page_number": i + 1,
@@ -161,7 +165,7 @@ class DocumentService:
             # Step 2: Check if PDF is scanned (little to no text)
             if self._is_likely_scanned(raw_text):
                 logger.info("PDF appears to be scanned. Falling back to OCR.")
-                pages, raw_text = self._extract_with_ocr(file)
+                pages, raw_text = self._extract_with_ocr(file, max_pages=max_pages)
                 page_count = len(pages)
         
         except Exception as e:
@@ -198,12 +202,13 @@ class DocumentService:
         alpha_count = sum(c.isalpha() for c in text)
         return alpha_count < len(text) * 0.5
     
-    def _extract_with_ocr(self, file: bytes) -> Tuple[List[Dict], str]:
+    def _extract_with_ocr(self, file: bytes, max_pages: Optional[int] = None) -> Tuple[List[Dict], str]:
         """
         Extract text from PDF using OCR (for scanned documents).
         
         Args:
             file: PDF file as bytes
+            max_pages: Optional limit on number of pages to extract
             
         Returns:
             Tuple of (pages list, combined raw text)
@@ -217,7 +222,11 @@ class DocumentService:
         pages = []
         try:
             images = convert_from_bytes(file)
-            for i, image in enumerate(images):
+            
+            # Limit pages if max_pages is specified
+            images_to_process = images if max_pages is None else images[:max_pages]
+            
+            for i, image in enumerate(images_to_process):
                 text = pytesseract.image_to_string(image)
                 pages.append({
                     "page_number": i + 1,

@@ -5,24 +5,26 @@ from contextlib import asynccontextmanager
 import tempfile
 import os
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from database import get_db, init_db
 from app.services.document_service import DocumentService
+from app.services.triage_service import TriageService
 from app.license_manager import get_license_verifier, LicenseExpiredError, LicenseInvalidError
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Global document service instance
+# Global service instances
 document_service = None
+triage_service = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize database and document service on startup"""
-    global document_service
+    """Initialize database and services on startup"""
+    global document_service, triage_service
     
     # Initialize ChromaDB
     init_db()
@@ -33,6 +35,14 @@ async def lifespan(app: FastAPI):
     # Initialize document service with collection
     document_service = DocumentService(collection=collection)
     logger.info("Document service initialized with ChromaDB")
+    
+    # Initialize triage service
+    triage_service = TriageService(
+        document_service=document_service,
+        ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+        model_name=os.getenv("OLLAMA_MODEL", "llama3")
+    )
+    logger.info("Triage service initialized")
     
     yield
     
@@ -238,6 +248,74 @@ async def health_check():
         "service": "Nordicsecure RAG API",
         "version": "1.0.0"
     }
+
+
+class TriageRequest(BaseModel):
+    source_folder: str
+    target_relevant: str
+    target_irrelevant: str
+    criteria: str
+    max_pages: Optional[int] = 5
+
+
+class TriageResponse(BaseModel):
+    total_files: int
+    processed: int
+    relevant: int
+    irrelevant: int
+    errors: int
+    audit_log: List[Dict[str, Any]]
+
+
+@app.post("/triage/batch", response_model=TriageResponse)
+async def batch_triage(request: TriageRequest):
+    """
+    Batch process files for AI triage sorting.
+    
+    This endpoint:
+    1. Reads all PDF files from source folder
+    2. Extracts text from first N pages (lazy loading)
+    3. Classifies each document using LLM based on criteria
+    4. Moves files to relevant/irrelevant folders
+    5. Returns audit log for compliance
+    
+    Args:
+        request: Triage request with folders and criteria
+        
+    Returns:
+        Statistics and audit log
+    """
+    global triage_service
+    
+    if triage_service is None:
+        raise HTTPException(status_code=500, detail="Triage service not initialized")
+    
+    try:
+        # Validate inputs
+        if not request.source_folder or not request.target_relevant or not request.target_irrelevant:
+            raise HTTPException(status_code=400, detail="All folder paths are required")
+        
+        if not request.criteria.strip():
+            raise HTTPException(status_code=400, detail="Criteria cannot be empty")
+        
+        # Process files
+        result = triage_service.batch_process(
+            source_folder=request.source_folder,
+            target_relevant=request.target_relevant,
+            target_irrelevant=request.target_irrelevant,
+            criteria=request.criteria,
+            max_pages=request.max_pages
+        )
+        
+        return TriageResponse(**result)
+    
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in batch triage: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error processing files: {str(e)}")
 
 
 if __name__ == "__main__":
