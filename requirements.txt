@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+streamlit
+chromadb
+pandas
+openpyxl
+python-multipart
+requests
+pypdf
+pyinstaller
+watchdog
+altair
+pyarrow
+tqdm
