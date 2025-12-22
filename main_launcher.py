@@ -2,7 +2,7 @@
 """
 Nordic Secure Main Launcher - Process Manager
 Entry point for the Golden Master production build.
-Manages Backend (FastAPI) and Frontend (Streamlit) services.
+Manages Ollama, Backend (FastAPI) and Frontend (Streamlit) services.
 """
 
 import os
@@ -10,11 +10,17 @@ import sys
 import threading
 import time
 import logging
+import subprocess
+import signal
+import atexit
+import traceback
 from pathlib import Path
 from typing import Optional
 
 # Configure logging to both console and debug.log file
 log_file = Path("debug.log")
+startup_error_log = Path("startup_error.log")
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -46,16 +52,128 @@ def get_base_directory() -> Path:
 
 class ServiceManager:
     """
-    Process Manager for Backend (FastAPI) and Frontend (Streamlit).
-    Runs services in threads for the production .exe build.
+    Process Manager for Ollama, Backend (FastAPI) and Frontend (Streamlit).
+    Runs services in threads/processes for the production .exe build.
     """
     
     def __init__(self):
         self.base_dir = get_base_directory()
         self.backend_thread: Optional[threading.Thread] = None
         self.frontend_thread: Optional[threading.Thread] = None
+        self.ollama_process: Optional[subprocess.Popen] = None
         self.shutdown_event = threading.Event()
         self.backend_should_stop = threading.Event()
+        
+        # Register cleanup handler
+        atexit.register(self.cleanup_processes)
+    
+    def log_startup_error(self, error_message: str):
+        """
+        Log startup errors to startup_error.log for troubleshooting.
+        """
+        try:
+            with open(startup_error_log, "a", encoding="utf-8") as f:
+                f.write(f"\n{'='*60}\n")
+                f.write(f"Startup Error - {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"{'='*60}\n")
+                f.write(f"{error_message}\n")
+        except Exception as e:
+            logger.error(f"Failed to write to startup_error.log: {e}")
+    
+    def start_ollama(self) -> bool:
+        """
+        Start Ollama server as a background process.
+        Sets OLLAMA_MODELS environment variable to point to ./bin/models.
+        Returns True if successful, False otherwise.
+        """
+        try:
+            logger.info("Starting Ollama server...")
+            
+            # Configure Ollama models directory
+            ollama_models_path = self.base_dir / "bin" / "models"
+            os.environ["OLLAMA_MODELS"] = str(ollama_models_path)
+            logger.info(f"Set OLLAMA_MODELS to: {ollama_models_path}")
+            
+            # Path to ollama.exe
+            ollama_exe = self.base_dir / "bin" / "ollama.exe"
+            
+            if not ollama_exe.exists():
+                error_msg = f"Ollama executable not found at: {ollama_exe}"
+                logger.warning(error_msg)
+                self.log_startup_error(error_msg)
+                return False
+            
+            # Start Ollama serve as subprocess
+            logger.info(f"Launching Ollama from: {ollama_exe}")
+            
+            # Use CREATE_NO_WINDOW flag on Windows to hide console
+            creation_flags = 0
+            if sys.platform == "win32":
+                creation_flags = subprocess.CREATE_NO_WINDOW
+            
+            self.ollama_process = subprocess.Popen(
+                [str(ollama_exe), "serve"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                creationflags=creation_flags,
+                cwd=str(self.base_dir)
+            )
+            
+            logger.info(f"Ollama process started with PID: {self.ollama_process.pid}")
+            
+            # Wait 5 seconds for Ollama to initialize
+            logger.info("Waiting 5 seconds for Ollama to initialize...")
+            time.sleep(5)
+            
+            # Check if process is still running
+            if self.ollama_process.poll() is not None:
+                error_msg = f"Ollama process terminated unexpectedly with code: {self.ollama_process.poll()}"
+                logger.error(error_msg)
+                self.log_startup_error(error_msg)
+                return False
+            
+            logger.info("Ollama server started successfully")
+            return True
+            
+        except Exception as e:
+            error_msg = f"Failed to start Ollama: {e}"
+            logger.error(error_msg, exc_info=True)
+            self.log_startup_error(f"{error_msg}\n{traceback.format_exc()}")
+            return False
+    
+    def cleanup_processes(self):
+        """
+        Clean up all processes when shutting down.
+        Ensures Ollama and other processes are terminated properly.
+        Can be called multiple times safely (idempotent).
+        """
+        # Prevent duplicate cleanup
+        if self.ollama_process is None:
+            return
+            
+        logger.info("Cleaning up processes...")
+        
+        # Terminate Ollama process
+        try:
+            logger.info(f"Terminating Ollama process (PID: {self.ollama_process.pid})...")
+            self.ollama_process.terminate()
+            
+            # Wait for graceful shutdown
+            try:
+                self.ollama_process.wait(timeout=5)
+                logger.info("Ollama process terminated gracefully")
+            except subprocess.TimeoutExpired:
+                logger.warning("Ollama process did not terminate gracefully, killing...")
+                self.ollama_process.kill()
+                self.ollama_process.wait()
+                logger.info("Ollama process killed")
+        except Exception as e:
+            logger.error(f"Error terminating Ollama process: {e}")
+        finally:
+            # Mark as cleaned up to prevent duplicate attempts
+            self.ollama_process = None
+        
+        logger.info("Cleanup complete")
         
     def start_backend(self):
         """
@@ -139,7 +257,7 @@ class ServiceManager:
     def run(self):
         """
         Main execution method - starts all services.
-        Backend runs in a thread, Frontend runs in main thread.
+        Order: Ollama -> Backend -> Frontend
         """
         logger.info("="*60)
         logger.info("Nordic Secure - Golden Master Production Build")
@@ -150,8 +268,16 @@ class ServiceManager:
             os.environ['IsWindowsApp'] = 'True'
             logger.info("Environment variable IsWindowsApp=True set")
             
-            # Start backend in a separate thread
-            logger.info("Starting Backend (FastAPI) in thread...")
+            # Step 1: Start Ollama
+            logger.info("Step 1: Starting Ollama server...")
+            if not self.start_ollama():
+                logger.warning("Ollama failed to start. Continuing without Ollama...")
+                logger.warning("Some features may not be available.")
+            else:
+                logger.info("Ollama is ready")
+            
+            # Step 2: Start backend in a separate thread
+            logger.info("Step 2: Starting Backend (FastAPI) in thread...")
             # Use daemon=False to allow proper cleanup
             self.backend_thread = threading.Thread(target=self.start_backend, daemon=False)
             self.backend_thread.start()
@@ -160,25 +286,26 @@ class ServiceManager:
             time.sleep(5)
             logger.info("Backend should be running on http://127.0.0.1:8000")
             
-            # Start frontend in main thread (this will block)
-            logger.info("Starting Frontend (Streamlit) in main thread...")
+            # Step 3: Start frontend in main thread (this will block)
+            logger.info("Step 3: Starting Frontend (Streamlit) in main thread...")
             self.start_frontend()
             
         except KeyboardInterrupt:
             logger.info("Received interrupt signal")
         except Exception as e:
-            logger.error(f"Unexpected error in main launcher: {e}", exc_info=True)
-            with open("debug.log", "a") as f:
-                f.write(f"\n[MAIN ERROR] {e}\n")
+            error_msg = f"Unexpected error in main launcher: {e}"
+            logger.error(error_msg, exc_info=True)
+            self.log_startup_error(f"{error_msg}\n{traceback.format_exc()}")
         finally:
             logger.info("Shutting down...")
             self.shutdown_event.set()
+            self.cleanup_processes()
 
 
 def main():
     """
     Main entry point for the launcher.
-    Logs any startup errors to debug.log for troubleshooting.
+    Logs any startup errors to startup_error.log for troubleshooting.
     """
     try:
         logger.info("Nordic Secure launcher starting...")
@@ -190,16 +317,27 @@ def main():
     except Exception as e:
         logger.error(f"Fatal error during startup: {e}", exc_info=True)
         
-        # Write error to debug.log for customer troubleshooting
+        # Write error to startup_error.log for customer troubleshooting
+        try:
+            with open(startup_error_log, "a", encoding="utf-8") as f:
+                f.write(f"\n{'='*60}\n")
+                f.write(f"FATAL STARTUP ERROR - {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"{'='*60}\n")
+                f.write(f"{traceback.format_exc()}\n")
+        except Exception as log_error:
+            # If we can't write to startup_error.log, at least log it to console
+            logger.error(f"Failed to write to startup_error.log: {log_error}")
+        
+        # Also write to debug.log for consistency
         try:
             with open("debug.log", "a") as f:
-                import traceback
                 f.write(f"\n{'='*60}\n")
                 f.write(f"FATAL STARTUP ERROR\n")
                 f.write(f"{'='*60}\n")
                 f.write(f"{traceback.format_exc()}\n")
-        except:
-            pass
+        except Exception as log_error:
+            # If we can't write to debug.log either, at least we tried
+            logger.error(f"Failed to write to debug.log: {log_error}")
         
         return 1
     
