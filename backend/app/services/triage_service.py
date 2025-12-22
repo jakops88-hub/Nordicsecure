@@ -176,8 +176,14 @@ Does this document match the criteria? Respond in JSON format only."""
             
         Returns:
             Path where file was moved
+            
+        Raises:
+            IOError: If file cannot be moved
         """
-        target_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            target_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            raise IOError(f"Failed to create target directory {target_dir}: {str(e)}") from e
         
         target_path = target_dir / source_path.name
         
@@ -191,10 +197,17 @@ Does this document match the criteria? Respond in JSON format only."""
                 new_name = f"{stem}_{counter}{suffix}"
                 target_path = target_dir / new_name
                 counter += 1
+                
+                # Safety check to prevent infinite loop
+                if counter > 10000:
+                    raise IOError(f"Too many files with similar names in {target_dir}")
         
-        # Move file
-        shutil.move(str(source_path), str(target_path))
-        logger.info(f"Moved {source_path.name} to {target_path}")
+        # Move file with error handling
+        try:
+            shutil.move(str(source_path), str(target_path))
+            logger.info(f"Moved {source_path.name} to {target_path}")
+        except (IOError, OSError, shutil.Error) as e:
+            raise IOError(f"Failed to move {source_path.name} to {target_path}: {str(e)}") from e
         
         return target_path
     
@@ -228,16 +241,27 @@ Does this document match the criteria? Respond in JSON format only."""
         timestamp = datetime.now().isoformat()
         
         try:
-            # Read file content
-            with open(file_path, 'rb') as f:
-                file_content = f.read()
+            # Read file content with error handling
+            try:
+                with open(file_path, 'rb') as f:
+                    file_content = f.read()
+            except IOError as io_error:
+                raise IOError(f"Failed to read file {filename}: {str(io_error)}") from io_error
+            except Exception as read_error:
+                raise Exception(f"Unexpected error reading file {filename}: {str(read_error)}") from read_error
             
             # Extract text with max_pages limit for lazy loading
-            parsed_data = self.document_service.parse_pdf(
-                file_content,
-                filename=filename,
-                max_pages=max_pages
-            )
+            try:
+                parsed_data = self.document_service.parse_pdf(
+                    file_content,
+                    filename=filename,
+                    max_pages=max_pages
+                )
+            except ValueError as pdf_error:
+                # Re-raise with more context (encrypted PDF, empty file, etc.)
+                raise ValueError(f"PDF parsing error for {filename}: {str(pdf_error)}") from pdf_error
+            except Exception as parse_error:
+                raise Exception(f"Failed to parse PDF {filename}: {str(parse_error)}") from parse_error
             
             # Get text from parsed pages
             pages = parsed_data.get("pages", [])
@@ -254,8 +278,11 @@ Does this document match the criteria? Respond in JSON format only."""
             target_dir = target_relevant if is_relevant else target_irrelevant
             decision = "relevant" if is_relevant else "irrelevant"
             
-            # Move file
-            moved_path = self.safe_move_file(file_path, target_dir)
+            # Move file with error handling
+            try:
+                moved_path = self.safe_move_file(file_path, target_dir)
+            except (IOError, OSError) as move_error:
+                raise Exception(f"Failed to move file {filename}: {str(move_error)}") from move_error
             
             result = {
                 "filename": filename,

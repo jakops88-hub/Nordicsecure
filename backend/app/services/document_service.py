@@ -152,13 +152,29 @@ class DocumentService:
         try:
             # Step 1: Try text extraction from PDF
             pdf_reader = PyPDF2.PdfReader(io.BytesIO(file))
+            
+            # Check if PDF is encrypted
+            if pdf_reader.is_encrypted:
+                logger.warning(f"PDF {filename} is encrypted")
+                raise ValueError("Cannot process encrypted PDF files. Please provide an unencrypted version.")
+            
             page_count = len(pdf_reader.pages)
+            
+            # Handle empty PDFs
+            if page_count == 0:
+                logger.warning(f"PDF {filename} has no pages")
+                raise ValueError("PDF file is empty (0 pages)")
             
             # Limit pages if max_pages is specified
             pages_to_extract = page_count if max_pages is None else min(max_pages, page_count)
             
             for i, page in enumerate(pdf_reader.pages[:pages_to_extract]):
-                page_text = page.extract_text() or ""
+                try:
+                    page_text = page.extract_text() or ""
+                except Exception as page_error:
+                    logger.warning(f"Error extracting text from page {i + 1}: {page_error}")
+                    page_text = ""
+                
                 pages.append({
                     "page_number": i + 1,
                     "text": page_text
@@ -168,12 +184,22 @@ class DocumentService:
             # Step 2: Check if PDF is scanned (little to no text)
             if self._is_likely_scanned(raw_text):
                 logger.info("PDF appears to be scanned. Falling back to OCR.")
-                pages, raw_text = self._extract_with_ocr(file, max_pages=max_pages)
-                page_count = len(pages)
+                try:
+                    pages, raw_text = self._extract_with_ocr(file, max_pages=max_pages)
+                    page_count = len(pages)
+                except ImportError as ocr_error:
+                    logger.error(f"OCR not available: {ocr_error}")
+                    raise ValueError("PDF appears to be scanned but OCR is not available. Install pdf2image and pytesseract.") from ocr_error
+                except Exception as ocr_error:
+                    logger.error(f"OCR failed: {ocr_error}")
+                    raise ValueError(f"Failed to extract text via OCR: {str(ocr_error)}") from ocr_error
         
-        except Exception as e:
-            logger.error(f"Error extracting PDF: {e}")
+        except ValueError:
+            # Re-raise ValueError exceptions (encrypted, empty, OCR issues)
             raise
+        except Exception as e:
+            logger.error(f"Error extracting PDF {filename}: {e}", exc_info=True)
+            raise ValueError(f"Failed to parse PDF: {str(e)}") from e
         
         # Step 3: Extract tables
         tables = self._extract_tables(pages)
@@ -673,7 +699,7 @@ class DocumentService:
             if not embeddings_list:
                 raise ValueError("No valid pages with text content found")
             
-            # Store all pages in ChromaDB
+            # Store all pages in ChromaDB with error handling
             try:
                 self.collection.add(
                     embeddings=embeddings_list,
@@ -693,8 +719,8 @@ class DocumentService:
                 }
             
             except Exception as e:
-                logger.error(f"Failed to store document pages: {e}")
-                raise
+                logger.error(f"Failed to store document pages in ChromaDB: {e}", exc_info=True)
+                raise RuntimeError(f"ChromaDB storage failed: {str(e)}") from e
         
         else:
             # Legacy behavior: store entire document as single chunk
@@ -710,7 +736,7 @@ class DocumentService:
             doc_hash = hashlib.md5(text.encode()).hexdigest()[:8]
             doc_id = f"doc_{timestamp}_{doc_hash}"
             
-            # Step 3: Store in ChromaDB
+            # Step 3: Store in ChromaDB with error handling
             try:
                 self.collection.add(
                     embeddings=[embedding_list],
@@ -730,8 +756,8 @@ class DocumentService:
                 }
             
             except Exception as e:
-                logger.error(f"Failed to store document: {e}")
-                raise
+                logger.error(f"Failed to store document in ChromaDB: {e}", exc_info=True)
+                raise RuntimeError(f"ChromaDB storage failed: {str(e)}") from e
     
     def _find_best_matching_line(
         self,
@@ -822,11 +848,15 @@ class DocumentService:
         
         logger.info(f"Searching for: {query_text}")
         
-        # Generate query embedding
-        query_embedding = self.embedding_model.encode(query_text, convert_to_numpy=True)
-        query_embedding_list = query_embedding.tolist()
+        # Generate query embedding with error handling
+        try:
+            query_embedding = self.embedding_model.encode(query_text, convert_to_numpy=True)
+            query_embedding_list = query_embedding.tolist()
+        except Exception as e:
+            logger.error(f"Failed to generate query embedding: {e}", exc_info=True)
+            raise RuntimeError(f"Embedding generation failed: {str(e)}") from e
         
-        # Search in ChromaDB
+        # Search in ChromaDB with error handling
         try:
             results = self.collection.query(
                 query_embeddings=[query_embedding_list],
@@ -866,5 +896,6 @@ class DocumentService:
             return formatted_results
         
         except Exception as e:
-            logger.error(f"Search failed: {e}")
+            logger.error(f"ChromaDB search failed: {e}", exc_info=True)
+            raise RuntimeError(f"Search operation failed: {str(e)}") from e
             raise
