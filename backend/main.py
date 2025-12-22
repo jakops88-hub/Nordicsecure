@@ -7,10 +7,10 @@ import os
 import logging
 from typing import List, Dict, Any, Optional
 
-from database import get_db, init_db
-from app.services.document_service import DocumentService
-from app.services.triage_service import TriageService
-from app.license_manager import get_license_verifier, LicenseExpiredError, LicenseInvalidError
+from backend.database import get_db, init_db
+from backend.app.services.document_service import DocumentService
+from backend.app.services.triage_service import TriageService
+from backend.app.license_manager import get_license_verifier, LicenseExpiredError, LicenseInvalidError
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
