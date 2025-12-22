@@ -1,6 +1,10 @@
 # Streamlit Configuration for Nordic Secure Production Build
 # This configuration ensures the app runs smoothly as a .exe without prompts
 
+[global]
+# Disable usage statistics collection
+gatherUsageStats = false
+
 [server]
 # Server settings for headless operation
 headless = true
@@ -12,8 +16,6 @@ enableXsrfProtection = true
 [browser]
 # Disable server address display on startup
 serverAddress = "localhost"
-# Don't automatically open browser (handled by launcher)
-gatherUsageStats = false
 # Don't show email collection prompt
 serverPort = 8501
 

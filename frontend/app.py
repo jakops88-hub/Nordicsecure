@@ -509,13 +509,18 @@ def main():
     
     except Exception as e:
         # Friendly error handling - no stack traces for users
+        # Use fallback messages in case translations not loaded
+        error_msg = "⚠️ Ett fel uppstod"
+        restart_msg = "Försök starta om applikationen."
+        
         try:
-            st.error(t.get("error_occurred", "⚠️ Ett fel uppstod"))
-            st.info(t.get("error_restart_message", "Försök starta om applikationen."))
-        except:
-            # Fallback if translations not available
-            st.error("⚠️ Ett fel uppstod")
-            st.info("Försök starta om applikationen.")
+            error_msg = t.get("error_occurred", error_msg)
+            restart_msg = t.get("error_restart_message", restart_msg)
+        except (NameError, KeyError):
+            pass  # Use fallback messages
+        
+        st.error(error_msg)
+        st.info(restart_msg)
         
         # Log error for debugging (still write to console/logs)
         import traceback
