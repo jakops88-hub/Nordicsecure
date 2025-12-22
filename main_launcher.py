@@ -1,23 +1,27 @@
 #!/usr/bin/env python
 """
-Nordic Secure Main Launcher
-Orchestrates all services (Ollama, Backend, Frontend) for native Windows deployment.
+Nordic Secure Main Launcher - Process Manager
+Entry point for the Golden Master production build.
+Manages Backend (FastAPI) and Frontend (Streamlit) services.
 """
 
 import os
 import sys
-import subprocess
-import multiprocessing
+import threading
 import time
-import signal
 import logging
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional
 
-# Configure logging
+# Configure logging to both console and debug.log file
+log_file = Path("debug.log")
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(log_file),
+        logging.StreamHandler(sys.stdout)
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -26,302 +30,180 @@ def get_base_directory() -> Path:
     """
     Get the base directory for the application.
     Works with both script execution and PyInstaller bundles.
+    Uses sys._MEIPASS for PyInstaller to find bundled files.
     """
     if getattr(sys, '_MEIPASS', None):
         # Running as PyInstaller bundle
-        return Path(sys._MEIPASS)
+        base_path = Path(sys._MEIPASS)
+        logger.info(f"Running as PyInstaller bundle. Base path: {base_path}")
+        return base_path
     else:
         # Running as script
-        return Path(__file__).parent.absolute()
-
-
-def get_ollama_path() -> Optional[Path]:
-    """
-    Get the path to the Ollama executable.
-    Looks in bin/ directory relative to the application.
-    """
-    base_dir = get_base_directory()
-    ollama_path = base_dir / 'bin' / 'ollama.exe'
-    
-    if ollama_path.exists():
-        logger.info(f"Found Ollama at: {ollama_path}")
-        return ollama_path
-    else:
-        logger.warning(f"Ollama not found at: {ollama_path}")
-        return None
+        base_path = Path(__file__).parent.absolute()
+        logger.info(f"Running as script. Base path: {base_path}")
+        return base_path
 
 
 class ServiceManager:
     """
-    Manages the lifecycle of all services (Ollama, Backend, Frontend).
+    Process Manager for Backend (FastAPI) and Frontend (Streamlit).
+    Runs services in threads for the production .exe build.
     """
     
     def __init__(self):
-        self.processes: List[subprocess.Popen] = []
         self.base_dir = get_base_directory()
-        self.ollama_process: Optional[subprocess.Popen] = None
-        self.backend_process: Optional[subprocess.Popen] = None
-        self.frontend_process: Optional[subprocess.Popen] = None
+        self.backend_thread: Optional[threading.Thread] = None
+        self.frontend_thread: Optional[threading.Thread] = None
+        self.shutdown_event = threading.Event()
+        self.backend_should_stop = threading.Event()
         
-    def start_ollama(self) -> bool:
+    def start_backend(self):
         """
-        Start the Ollama server.
-        
-        Returns:
-            True if started successfully, False otherwise
+        Start the FastAPI backend using uvicorn.run in a thread.
+        This is the proper way to run uvicorn programmatically.
         """
-        ollama_path = get_ollama_path()
-        
-        if not ollama_path:
-            logger.error("Ollama executable not found. Please place ollama.exe in the bin/ directory.")
-            return False
-        
         try:
-            logger.info("Starting Ollama server...")
+            logger.info("Starting FastAPI backend in thread...")
             
-            # Start Ollama serve
-            self.ollama_process = subprocess.Popen(
-                [str(ollama_path), "serve"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == 'win32' else 0
+            # Import uvicorn here to avoid import issues
+            import uvicorn
+            
+            # Set working directory to base_dir
+            os.chdir(str(self.base_dir))
+            
+            # Add base directory to Python path so imports work
+            if str(self.base_dir) not in sys.path:
+                sys.path.insert(0, str(self.base_dir))
+            
+            # Run uvicorn server
+            # Note: This will block until server stops
+            uvicorn.run(
+                "backend.main:app",
+                host="127.0.0.1",
+                port=8000,
+                log_level="info"
             )
             
-            self.processes.append(self.ollama_process)
-            
-            # Wait a bit for Ollama to start
-            time.sleep(5)
-            
-            # Check if process is still running
-            if self.ollama_process.poll() is None:
-                logger.info("Ollama server started successfully")
-                return True
-            else:
-                logger.error("Ollama server failed to start")
-                return False
-            
         except Exception as e:
-            logger.error(f"Error starting Ollama: {e}")
-            return False
+            logger.error(f"Error in backend thread: {e}", exc_info=True)
+            with open("debug.log", "a") as f:
+                f.write(f"\n[BACKEND ERROR] {e}\n")
     
-    def start_backend(self) -> bool:
+    def start_frontend(self):
         """
-        Start the FastAPI backend using uvicorn.
-        
-        Returns:
-            True if started successfully, False otherwise
+        Start the Streamlit frontend using streamlit.web.cli.main.
+        This is the proper way to start Streamlit programmatically.
         """
         try:
-            logger.info("Starting FastAPI backend...")
+            logger.info("Starting Streamlit frontend in subprocess...")
             
-            # Determine backend main file path
-            backend_main = self.base_dir / 'backend' / 'main.py'
+            # Set working directory to base_dir
+            os.chdir(str(self.base_dir))
             
-            if not backend_main.exists():
-                logger.error(f"Backend main.py not found at: {backend_main}")
-                return False
-            
-            # Start uvicorn programmatically in a subprocess
-            # This allows better process management
-            self.backend_process = subprocess.Popen(
-                [
-                    sys.executable,
-                    "-m", "uvicorn",
-                    "backend.main:app",
-                    "--host", "127.0.0.1",
-                    "--port", "8000"
-                ],
-                cwd=str(self.base_dir),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == 'win32' else 0
-            )
-            
-            self.processes.append(self.backend_process)
-            
-            # Wait for backend to start
-            time.sleep(3)
-            
-            # Check if process is still running
-            if self.backend_process.poll() is None:
-                logger.info("FastAPI backend started successfully on http://127.0.0.1:8000")
-                return True
-            else:
-                logger.error("FastAPI backend failed to start")
-                return False
-            
-        except Exception as e:
-            logger.error(f"Error starting backend: {e}")
-            return False
-    
-    def start_frontend(self) -> bool:
-        """
-        Start the Streamlit frontend.
-        
-        Returns:
-            True if started successfully, False otherwise
-        """
-        try:
-            logger.info("Starting Streamlit frontend...")
+            # Set environment variable for backend URL
+            os.environ['BACKEND_URL'] = 'http://127.0.0.1:8000'
             
             # Determine frontend app path
             frontend_app = self.base_dir / 'frontend' / 'app.py'
             
             if not frontend_app.exists():
                 logger.error(f"Frontend app.py not found at: {frontend_app}")
-                return False
+                with open("debug.log", "a") as f:
+                    f.write(f"\n[FRONTEND ERROR] app.py not found at {frontend_app}\n")
+                return
             
-            # Set environment variable for backend URL
-            env = os.environ.copy()
-            env['BACKEND_URL'] = 'http://127.0.0.1:8000'
+            # Use Streamlit's CLI main function
+            from streamlit.web import cli as stcli
             
-            # Start Streamlit
-            self.frontend_process = subprocess.Popen(
-                [
-                    sys.executable,
-                    "-m", "streamlit",
-                    "run",
-                    str(frontend_app),
-                    "--server.port", "8501",
-                    "--server.address", "127.0.0.1"
-                ],
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == 'win32' else 0
-            )
+            # Set sys.argv for Streamlit CLI
+            sys.argv = [
+                "streamlit",
+                "run",
+                str(frontend_app),
+                "--server.port=8501",
+                "--server.address=127.0.0.1",
+                "--server.headless=true"
+            ]
             
-            self.processes.append(self.frontend_process)
+            # Run Streamlit
+            stcli.main()
             
-            # Wait for frontend to start
-            time.sleep(3)
-            
-            # Check if process is still running
-            if self.frontend_process.poll() is None:
-                logger.info("Streamlit frontend started successfully on http://127.0.0.1:8501")
-                return True
-            else:
-                logger.error("Streamlit frontend failed to start")
-                return False
-            
+        except SystemExit as e:
+            # Streamlit calls sys.exit() when it shuts down normally
+            logger.info(f"Streamlit exited with code: {e.code}")
         except Exception as e:
-            logger.error(f"Error starting frontend: {e}")
-            return False
-    
-    def stop_all(self):
-        """
-        Stop all running services gracefully.
-        """
-        logger.info("Stopping all services...")
-        
-        # Stop in reverse order
-        for process in reversed(self.processes):
-            if process and process.poll() is None:
-                try:
-                    # Try graceful termination first
-                    process.terminate()
-                    
-                    # Wait up to 5 seconds for graceful shutdown
-                    try:
-                        process.wait(timeout=5)
-                        logger.info(f"Process {process.pid} terminated gracefully")
-                    except subprocess.TimeoutExpired:
-                        # Force kill if graceful shutdown fails
-                        process.kill()
-                        logger.warning(f"Process {process.pid} force killed")
-                
-                except Exception as e:
-                    logger.error(f"Error stopping process: {e}")
-        
-        self.processes.clear()
-        logger.info("All services stopped")
+            logger.error(f"Error in frontend: {e}", exc_info=True)
+            with open("debug.log", "a") as f:
+                f.write(f"\n[FRONTEND ERROR] {e}\n")
     
     def run(self):
         """
-        Main execution method - starts all services and monitors them.
+        Main execution method - starts all services.
+        Backend runs in a thread, Frontend runs in main thread.
         """
         logger.info("="*60)
-        logger.info("Nordic Secure - Starting all services")
+        logger.info("Nordic Secure - Golden Master Production Build")
         logger.info("="*60)
         
-        # Register signal handlers for graceful shutdown
-        signal.signal(signal.SIGINT, lambda s, f: self.handle_shutdown())
-        signal.signal(signal.SIGTERM, lambda s, f: self.handle_shutdown())
-        
         try:
-            # Start services in order
-            if not self.start_ollama():
-                logger.error("Failed to start Ollama. Exiting.")
-                return 1
+            # Set environment variable to indicate running in Windows .exe
+            os.environ['IsWindowsApp'] = 'True'
+            logger.info("Environment variable IsWindowsApp=True set")
             
-            if not self.start_backend():
-                logger.error("Failed to start backend. Exiting.")
-                self.stop_all()
-                return 1
+            # Start backend in a separate thread
+            logger.info("Starting Backend (FastAPI) in thread...")
+            # Use daemon=False to allow proper cleanup
+            self.backend_thread = threading.Thread(target=self.start_backend, daemon=False)
+            self.backend_thread.start()
             
-            if not self.start_frontend():
-                logger.error("Failed to start frontend. Exiting.")
-                self.stop_all()
-                return 1
+            # Give backend time to start
+            time.sleep(5)
+            logger.info("Backend should be running on http://127.0.0.1:8000")
             
-            logger.info("="*60)
-            logger.info("All services started successfully!")
-            logger.info("Frontend: http://127.0.0.1:8501")
-            logger.info("Backend API: http://127.0.0.1:8000")
-            logger.info("Press Ctrl+C to stop all services")
-            logger.info("="*60)
-            
-            # Monitor processes
-            self.monitor_processes()
+            # Start frontend in main thread (this will block)
+            logger.info("Starting Frontend (Streamlit) in main thread...")
+            self.start_frontend()
             
         except KeyboardInterrupt:
             logger.info("Received interrupt signal")
         except Exception as e:
-            logger.error(f"Unexpected error: {e}")
+            logger.error(f"Unexpected error in main launcher: {e}", exc_info=True)
+            with open("debug.log", "a") as f:
+                f.write(f"\n[MAIN ERROR] {e}\n")
         finally:
-            self.stop_all()
-        
-        return 0
-    
-    def monitor_processes(self):
-        """
-        Monitor all processes and restart if any crashes.
-        """
-        while True:
-            time.sleep(5)
-            
-            # Check each process
-            if self.ollama_process and self.ollama_process.poll() is not None:
-                logger.error("Ollama process died. Restarting...")
-                self.start_ollama()
-            
-            if self.backend_process and self.backend_process.poll() is not None:
-                logger.error("Backend process died. Restarting...")
-                self.start_backend()
-            
-            if self.frontend_process and self.frontend_process.poll() is not None:
-                logger.error("Frontend process died. Restarting...")
-                self.start_frontend()
-    
-    def handle_shutdown(self):
-        """
-        Handle shutdown signals gracefully.
-        """
-        logger.info("Shutdown signal received")
-        self.stop_all()
-        sys.exit(0)
+            logger.info("Shutting down...")
+            self.shutdown_event.set()
 
 
 def main():
     """
     Main entry point for the launcher.
+    Logs any startup errors to debug.log for troubleshooting.
     """
-    # Prevent multiple instances
-    multiprocessing.freeze_support()
+    try:
+        logger.info("Nordic Secure launcher starting...")
+        
+        # Create and run service manager
+        manager = ServiceManager()
+        manager.run()
+        
+    except Exception as e:
+        logger.error(f"Fatal error during startup: {e}", exc_info=True)
+        
+        # Write error to debug.log for customer troubleshooting
+        try:
+            with open("debug.log", "a") as f:
+                import traceback
+                f.write(f"\n{'='*60}\n")
+                f.write(f"FATAL STARTUP ERROR\n")
+                f.write(f"{'='*60}\n")
+                f.write(f"{traceback.format_exc()}\n")
+        except:
+            pass
+        
+        return 1
     
-    # Create and run service manager
-    manager = ServiceManager()
-    return manager.run()
+    return 0
 
 
 if __name__ == "__main__":
