@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
     # Initialize triage service
     triage_service = TriageService(
         document_service=document_service,
-        ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+        ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11435"),
         model_name=os.getenv("OLLAMA_MODEL", "llama3")
     )
     logger.info("Triage service initialized")

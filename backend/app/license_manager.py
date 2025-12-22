@@ -41,7 +41,7 @@ class LicenseVerifier:
     # Actual production public key for license verification
     # This is a base64-encoded Ed25519 public key (32 bytes)
     # Generated from the private key kept secure by the administrator
-    PUBLIC_KEY_B64 = "t4XAMrwiV59V3EPyiHCEwG7/TEDoRSpkRlCtFPpdaBA="
+    PUBLIC_KEY_B64 = "1s/gMzgzjP7DxftuncoJYEHGlACA9Lkdi2HvqUH8x4M="
     
     def __init__(self):
         """Initialize the license verifier with the hardcoded public key."""

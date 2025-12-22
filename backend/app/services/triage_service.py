@@ -37,7 +37,7 @@ class TriageService:
     def __init__(
         self,
         document_service,
-        ollama_base_url: str = "http://localhost:11434",
+        ollama_base_url: str = "http://localhost:11435",
         model_name: str = "llama3"
     ):
         """

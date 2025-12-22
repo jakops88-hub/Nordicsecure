@@ -89,10 +89,12 @@ class ServiceManager:
         try:
             logger.info("Starting Ollama server...")
             
-            # Configure Ollama models directory
+            # Configure Ollama models directory and port
             ollama_models_path = self.base_dir / "bin" / "models"
             os.environ["OLLAMA_MODELS"] = str(ollama_models_path)
+            os.environ["OLLAMA_HOST"] = "127.0.0.1:11435"  # Use port 11435 to avoid conflict
             logger.info(f"Set OLLAMA_MODELS to: {ollama_models_path}")
+            logger.info(f"Set OLLAMA_HOST to: 127.0.0.1:11435")
             
             # Path to ollama.exe
             ollama_exe = self.base_dir / "bin" / "ollama.exe"
@@ -127,10 +129,17 @@ class ServiceManager:
             
             # Check if process is still running
             if self.ollama_process.poll() is not None:
-                error_msg = f"Ollama process terminated unexpectedly with code: {self.ollama_process.poll()}"
-                logger.error(error_msg)
-                self.log_startup_error(error_msg)
-                return False
+                exit_code = self.ollama_process.poll()
+                # Check if it's because port is already in use (another Ollama instance)
+                if exit_code == 1:
+                    logger.info("Ollama port already in use - using existing Ollama instance")
+                    self.ollama_process = None  # Don't manage external instance
+                    return True  # Ollama is available, just not started by us
+                else:
+                    error_msg = f"Ollama process terminated unexpectedly with code: {exit_code}"
+                    logger.error(error_msg)
+                    self.log_startup_error(error_msg)
+                    return False
             
             logger.info("Ollama server started successfully")
             return True
