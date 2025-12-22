@@ -13,17 +13,34 @@ TRIAGE_TIMEOUT = int(os.getenv("TRIAGE_TIMEOUT", "3600"))  # 1 hour default
 st.set_page_config(page_title="Nordic Secure RAG System", page_icon="🔐", layout="wide")
 
 def check_license():
-    """Check license status with backend"""
+    """
+    Check license status with backend.
+    
+    Returns:
+        dict: License status with 'valid' and 'message' keys
+    """
     try:
         response = requests.get(f"{BACKEND_URL}/license/status", timeout=5)
         if response.status_code == 200:
             return response.json()
         return {"valid": False, "message": "Could not verify license"}
-    except requests.exceptions.RequestException:
-        return {"valid": False, "message": "Backend connection failed"}
+    except requests.exceptions.Timeout:
+        return {"valid": False, "message": "License check timed out"}
+    except requests.exceptions.ConnectionError:
+        return {"valid": False, "message": "Cannot connect to backend"}
+    except requests.exceptions.RequestException as e:
+        return {"valid": False, "message": f"License check error: {str(e)}"}
 
 def activate_license(license_key: str):
-    """Activate a license key"""
+    """
+    Activate a license key.
+    
+    Args:
+        license_key: The license key to activate
+        
+    Returns:
+        dict: Activation result with 'success' and 'message' keys
+    """
     try:
         response = requests.post(
             f"{BACKEND_URL}/license/activate",
@@ -31,32 +48,81 @@ def activate_license(license_key: str):
             timeout=5
         )
         return response.json()
+    except requests.exceptions.Timeout:
+        return {"success": False, "message": "Request timed out"}
+    except requests.exceptions.ConnectionError:
+        return {"success": False, "message": "Cannot connect to backend"}
     except requests.exceptions.RequestException as e:
         return {"success": False, "message": f"Connection error: {str(e)}"}
 
 def upload_document(file_bytes, filename):
-    """Upload document to backend"""
+    """
+    Upload document to backend.
+    
+    Args:
+        file_bytes: PDF file content as bytes
+        filename: Name of the file
+        
+    Returns:
+        dict: Upload result
+    """
     try:
         files = {"file": (filename, file_bytes, "application/pdf")}
         response = requests.post(f"{BACKEND_URL}/ingest", files=files, timeout=120)
-        return response.json()
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return {"error": f"Upload failed with status {response.status_code}: {response.text}"}
+    except requests.exceptions.Timeout:
+        return {"error": "Upload timed out after 120 seconds"}
+    except requests.exceptions.ConnectionError:
+        return {"error": "Cannot connect to backend"}
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": f"Upload error: {str(e)}"}
 
 def search_documents(query):
-    """Search documents"""
+    """
+    Search documents using semantic similarity.
+    
+    Args:
+        query: Search query string
+        
+    Returns:
+        dict: Search results
+    """
     try:
         response = requests.post(
             f"{BACKEND_URL}/search",
             json={"query": query},
             timeout=30
         )
-        return response.json()
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return {"error": f"Search failed with status {response.status_code}: {response.text}"}
+    except requests.exceptions.Timeout:
+        return {"error": "Search timed out after 30 seconds"}
+    except requests.exceptions.ConnectionError:
+        return {"error": "Cannot connect to backend"}
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": f"Search error: {str(e)}"}
 
 def start_triage(source_folder, target_relevant, target_irrelevant, criteria, max_pages):
-    """Start triage process"""
+    """
+    Start triage process for batch file sorting.
+    
+    Args:
+        source_folder: Path to source folder
+        target_relevant: Path to relevant folder
+        target_irrelevant: Path to irrelevant folder
+        criteria: Classification criteria
+        max_pages: Maximum pages to analyze per document
+        
+    Returns:
+        dict: Triage results with statistics and audit log
+    """
     try:
         response = requests.post(
             f"{BACKEND_URL}/triage/batch",
@@ -69,11 +135,28 @@ def start_triage(source_folder, target_relevant, target_irrelevant, criteria, ma
             },
             timeout=TRIAGE_TIMEOUT
         )
-        return response.json()
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return {"error": f"Triage failed with status {response.status_code}: {response.text}"}
+    except requests.exceptions.Timeout:
+        return {"error": f"Triage timed out after {TRIAGE_TIMEOUT} seconds"}
+    except requests.exceptions.ConnectionError:
+        return {"error": "Cannot connect to backend"}
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": f"Triage error: {str(e)}"}
 
 def main():
+    """
+    Main application function.
+    
+    Handles UI rendering, session state management, and user interactions.
+    """
+    # Initialize session state variables
+    if 'language' not in st.session_state:
+        st.session_state.language = 'en'
+    
     # Language selector in sidebar
     st.sidebar.title("⚙️ Settings")
     language = st.sidebar.selectbox(
