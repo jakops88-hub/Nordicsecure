@@ -636,8 +636,11 @@ class DocumentService:
                 page_num = page.get("page_number", 0)
                 page_text = page.get("text", "")
                 
+                # Store even empty pages to maintain consistent page numbering
+                # Use placeholder text for empty pages
                 if not page_text.strip():
-                    continue
+                    page_text = f"[Empty page {page_num}]"
+                    logger.debug(f"Page {page_num} is empty, using placeholder")
                 
                 # Generate embedding for this page
                 embedding = self.embedding_model.encode(page_text, convert_to_numpy=True)
@@ -738,21 +741,22 @@ class DocumentService:
         if not lines:
             return (1, "")
         
-        # Normalize query for better matching
+        # Normalize query once for better performance
         query_lower = query_text.lower()
         query_words = set(query_lower.split())
+        
+        # Pre-compute lowercased lines for efficiency
+        lines_lower = [line.lower() for line in lines]
         
         best_line_num = 1
         best_score = 0
         best_line_text = lines[0] if lines else ""
         
-        for i, line in enumerate(lines, start=1):
+        for i, (line, line_lower) in enumerate(zip(lines, lines_lower), start=1):
             if not line.strip():
                 continue
             
-            line_lower = line.lower()
-            
-            # Check for exact phrase match first
+            # Check for exact phrase match first (most important)
             if query_lower in line_lower:
                 return (i, line.strip())
             

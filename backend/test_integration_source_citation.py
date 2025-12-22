@@ -195,8 +195,8 @@ def test_edge_cases():
     
     # Test 3: Text with empty lines
     text_with_empty = """First line
-    
-    
+
+
 Third line after empty lines"""
     line_num, matched_line = service._find_best_matching_line(text_with_empty, "Third line")
     assert "Third line" in matched_line, "Should skip empty lines"
