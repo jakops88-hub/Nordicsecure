@@ -219,11 +219,7 @@ class ServiceManager:
             if process and process.poll() is None:
                 try:
                     # Try graceful termination first
-                    if sys.platform == 'win32':
-                        # On Windows, use CTRL_BREAK_EVENT
-                        process.send_signal(signal.CTRL_BREAK_EVENT)
-                    else:
-                        process.terminate()
+                    process.terminate()
                     
                     # Wait up to 5 seconds for graceful shutdown
                     try:

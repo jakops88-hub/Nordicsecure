@@ -4,6 +4,7 @@ Replaces PostgreSQL/pgvector with ChromaDB for native Windows deployment.
 """
 import os
 import sys
+from pathlib import Path
 import chromadb
 from chromadb.config import Settings
 from typing import Optional
@@ -20,14 +21,25 @@ def get_data_directory() -> str:
     # Check if running as PyInstaller bundle
     if getattr(sys, '_MEIPASS', None):
         # Running as executable - use user data directory
-        base_dir = os.path.join(os.getenv('APPDATA', os.path.expanduser('~')), 'NordicSecure')
+        if sys.platform == 'win32':
+            base_dir = os.getenv('APPDATA')
+            if not base_dir:
+                # Fallback if APPDATA not set
+                base_dir = Path.home() / 'AppData' / 'Roaming'
+            else:
+                base_dir = Path(base_dir)
+        else:
+            # macOS/Linux fallback
+            base_dir = Path.home() / '.local' / 'share'
+        
+        base_dir = Path(base_dir) / 'NordicSecure'
     else:
         # Running as script - use local data directory
-        base_dir = os.path.dirname(os.path.abspath(__file__))
+        base_dir = Path(__file__).parent
     
-    data_dir = os.path.join(base_dir, 'data', 'chroma_db')
-    os.makedirs(data_dir, exist_ok=True)
-    return data_dir
+    data_dir = base_dir / 'data' / 'chroma_db'
+    data_dir.mkdir(parents=True, exist_ok=True)
+    return str(data_dir)
 
 
 # Global ChromaDB client instance

@@ -11,6 +11,7 @@ import io
 import re
 import os
 import sys
+import hashlib
 import logging
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
@@ -623,7 +624,6 @@ class DocumentService:
         metadata["stored_at"] = stored_at
         
         # Step 3: Generate document ID (using timestamp + hash)
-        import hashlib
         doc_hash = hashlib.md5(text.encode()).hexdigest()[:8]
         doc_id = f"doc_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{doc_hash}"
         
