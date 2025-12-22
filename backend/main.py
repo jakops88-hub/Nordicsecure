@@ -2,7 +2,6 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
-import tempfile
 import os
 import logging
 from typing import List, Dict, Any, Optional

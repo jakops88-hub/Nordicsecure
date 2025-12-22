@@ -1,11 +1,8 @@
 import streamlit as st
 import requests
 import os
-import tempfile
-import io
 import pandas as pd
 from datetime import datetime, timezone
-from pathlib import Path
 
 # Backend URL from environment variable or default
 BACKEND_URL = os.getenv("BACKEND_URL", "http://backend:8000")

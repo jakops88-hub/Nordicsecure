@@ -11,7 +11,6 @@ import threading
 import time
 import logging
 import subprocess
-import signal
 import atexit
 import traceback
 from pathlib import Path
