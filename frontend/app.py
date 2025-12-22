@@ -406,106 +406,106 @@ def main():
                             st.info(f"📋 {t['document_id']}: {result['document_id']}")
                         else:
                             st.warning(t["upload_unknown"])
-    
-    # Tab 3: Mass Sorting / Triage
-    with tab_triage:
-        st.header(t["triage_title"])
-        st.write(t["triage_description"])
         
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            source_folder = st.text_input(
-                t["source_folder"],
-                help=t["source_folder_help"],
-                placeholder="/path/to/inbox"
-            )
+        # Tab 3: Mass Sorting / Triage
+        with tab_triage:
+            st.header(t["triage_title"])
+            st.write(t["triage_description"])
             
-            target_relevant = st.text_input(
-                t["target_relevant"],
-                help=t["target_relevant_help"],
-                placeholder="/path/to/relevant"
-            )
-        
-        with col2:
-            target_irrelevant = st.text_input(
-                t["target_irrelevant"],
-                help=t["target_irrelevant_help"],
-                placeholder="/path/to/irrelevant"
-            )
+            col1, col2 = st.columns(2)
             
-            max_pages = st.number_input(
-                t["max_pages_label"],
-                min_value=1,
-                max_value=20,
-                value=5,
-                help=t["max_pages_help"]
-            )
-        
-        criteria = st.text_area(
-            t["sorting_criteria"],
-            help=t["sorting_criteria_help"],
-            placeholder=t["sorting_criteria_placeholder"],
-            height=100
-        )
-        
-        if st.button(t["start_sorting"], type="primary"):
-            # Validate inputs
-            if not source_folder or not target_relevant or not target_irrelevant:
-                st.error(t["error_missing_paths"])
-            elif not criteria:
-                st.error(t["error_no_criteria"])
-            else:
-                # Create progress indicators
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-                log_expander = st.expander(t["live_log"], expanded=True)
-                log_container = log_expander.empty()
+            with col1:
+                source_folder = st.text_input(
+                    t["source_folder"],
+                    help=t["source_folder_help"],
+                    placeholder="/path/to/inbox"
+                )
                 
-                # Start triage
-                with st.spinner(t["processing"]):
-                    result = start_triage(
-                        source_folder,
-                        target_relevant,
-                        target_irrelevant,
-                        criteria,
-                        max_pages
-                    )
+                target_relevant = st.text_input(
+                    t["target_relevant"],
+                    help=t["target_relevant_help"],
+                    placeholder="/path/to/relevant"
+                )
+            
+            with col2:
+                target_irrelevant = st.text_input(
+                    t["target_irrelevant"],
+                    help=t["target_irrelevant_help"],
+                    placeholder="/path/to/irrelevant"
+                )
+                
+                max_pages = st.number_input(
+                    t["max_pages_label"],
+                    min_value=1,
+                    max_value=20,
+                    value=5,
+                    help=t["max_pages_help"]
+                )
+            
+            criteria = st.text_area(
+                t["sorting_criteria"],
+                help=t["sorting_criteria_help"],
+                placeholder=t["sorting_criteria_placeholder"],
+                height=100
+            )
+            
+            if st.button(t["start_sorting"], type="primary"):
+                # Validate inputs
+                if not source_folder or not target_relevant or not target_irrelevant:
+                    st.error(t["error_missing_paths"])
+                elif not criteria:
+                    st.error(t["error_no_criteria"])
+                else:
+                    # Create progress indicators
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+                    log_expander = st.expander(t["live_log"], expanded=True)
+                    log_container = log_expander.empty()
                     
-                    if "error" in result:
-                        st.error(f"{t['error']}: {result['error']}")
-                    elif "total_files" in result:
-                        progress_bar.progress(100)
-                        st.success(t["complete"])
+                    # Start triage
+                    with st.spinner(t["processing"]):
+                        result = start_triage(
+                            source_folder,
+                            target_relevant,
+                            target_irrelevant,
+                            criteria,
+                            max_pages
+                        )
                         
-                        # Display statistics
-                        col1, col2, col3, col4 = st.columns(4)
-                        with col1:
-                            st.metric(t["total_files"], result["total_files"])
-                        with col2:
-                            st.metric(t["relevant"], result["relevant"])
-                        with col3:
-                            st.metric(t["irrelevant"], result["irrelevant"])
-                        with col4:
-                            st.metric(t["errors"], result["errors"])
-                        
-                        # Display audit log
-                        if "audit_log" in result and result["audit_log"]:
-                            st.subheader(t["audit_log_title"])
+                        if "error" in result:
+                            st.error(f"{t['error']}: {result['error']}")
+                        elif "total_files" in result:
+                            progress_bar.progress(100)
+                            st.success(t["complete"])
                             
-                            df = pd.DataFrame(result["audit_log"])
-                            st.dataframe(df, use_container_width=True)
+                            # Display statistics
+                            col1, col2, col3, col4 = st.columns(4)
+                            with col1:
+                                st.metric(t["total_files"], result["total_files"])
+                            with col2:
+                                st.metric(t["relevant"], result["relevant"])
+                            with col3:
+                                st.metric(t["irrelevant"], result["irrelevant"])
+                            with col4:
+                                st.metric(t["errors"], result["errors"])
                             
-                            # Download button for audit log
-                            csv = df.to_csv(index=False)
-                            st.download_button(
-                                label=t["download_log"],
-                                data=csv,
-                                file_name=f"triage_audit_log_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv",
-                                mime="text/csv"
-                            )
-                    else:
-                        st.warning(t["unknown_response"])
+                            # Display audit log
+                            if "audit_log" in result and result["audit_log"]:
+                                st.subheader(t["audit_log_title"])
+                                
+                                df = pd.DataFrame(result["audit_log"])
+                                st.dataframe(df, use_container_width=True)
+                                
+                                # Download button for audit log
+                                csv = df.to_csv(index=False)
+                                st.download_button(
+                                    label=t["download_log"],
+                                    data=csv,
+                                    file_name=f"triage_audit_log_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv",
+                                    mime="text/csv"
+                                )
+                        else:
+                            st.warning(t["unknown_response"])
     
     except Exception as e:
         # Friendly error handling - no stack traces for users
