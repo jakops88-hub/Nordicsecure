@@ -62,6 +62,9 @@ class DocumentService:
         "kr", "dkk", "nok", "usd", "eur", "$", "€"
     ]
     
+    # Placeholder text for empty pages (maintains consistent page numbering)
+    EMPTY_PAGE_PLACEHOLDER = "[Empty page {}]"
+    
     def __init__(
         self,
         embedding_model: str = "all-MiniLM-L6-v2",
@@ -639,7 +642,7 @@ class DocumentService:
                 # Store even empty pages to maintain consistent page numbering
                 # Use placeholder text for empty pages
                 if not page_text.strip():
-                    page_text = f"[Empty page {page_num}]"
+                    page_text = self.EMPTY_PAGE_PLACEHOLDER.format(page_num)
                     logger.debug(f"Page {page_num} is empty, using placeholder")
                 
                 # Generate embedding for this page
