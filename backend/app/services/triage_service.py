@@ -74,15 +74,17 @@ class TriageService:
             - reason: str (explanation from AI)
             - confidence: float (optional)
         """
-        system_prompt = """You are a document classification assistant. Your task is to analyze documents and determine if they match the given criteria.
-
-IMPORTANT: You MUST respond with valid JSON only. No additional text before or after the JSON.
-
-Response format:
-{
-  "is_relevant": true/false,
-  "reason": "Brief explanation of why the document is or isn't relevant"
-}"""
+        system_prompt = (
+            "You are a document classification assistant. "
+            "Your task is to analyze documents and determine if they match the given criteria.\n\n"
+            "IMPORTANT: You MUST respond with valid JSON only. "
+            "No additional text before or after the JSON.\n\n"
+            "Response format:\n"
+            "{\n"
+            '  "is_relevant": true/false,\n'
+            '  "reason": "Brief explanation of why the document is or isn\'t relevant"\n'
+            "}"
+        )
         
         user_prompt = f"""Classification Criteria: {criteria}
 

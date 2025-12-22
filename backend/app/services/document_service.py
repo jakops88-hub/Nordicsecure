@@ -189,10 +189,15 @@ class DocumentService:
                     page_count = len(pages)
                 except ImportError as ocr_error:
                     logger.error(f"OCR not available: {ocr_error}")
-                    raise ValueError("PDF appears to be scanned but OCR is not available. Install pdf2image and pytesseract.") from ocr_error
+                    raise ValueError(
+                        "PDF appears to be scanned but OCR is not available. "
+                        "Install pdf2image and pytesseract."
+                    ) from ocr_error
                 except Exception as ocr_error:
                     logger.error(f"OCR failed: {ocr_error}")
-                    raise ValueError(f"Failed to extract text via OCR: {str(ocr_error)}") from ocr_error
+                    raise ValueError(
+                        f"Failed to extract text via OCR: {str(ocr_error)}"
+                    ) from ocr_error
         
         except ValueError:
             # Re-raise ValueError exceptions (encrypted, empty, OCR issues)
@@ -283,6 +288,7 @@ class DocumentService:
             current_rows = []
             
             def flush_rows():
+                """Add accumulated rows to tables list if enough rows exist."""
                 if len(current_rows) >= 2:  # At least 2 rows to be a table
                     tables.append({
                         "page_number": page["page_number"],

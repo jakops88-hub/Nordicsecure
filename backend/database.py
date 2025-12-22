@@ -1,6 +1,24 @@
 """
 ChromaDB-based database module for Nordic Secure.
-Replaces PostgreSQL/pgvector with ChromaDB for native Windows deployment.
+
+This module provides database initialization and collection management
+using ChromaDB as the vector store. ChromaDB was chosen for native
+Windows deployment without requiring PostgreSQL installation.
+
+Key Features:
+- Persistent storage with automatic directory management
+- Cross-platform compatibility (Windows, macOS, Linux)
+- PyInstaller bundle support with dynamic path resolution
+- Thread-safe singleton pattern for client management
+
+Usage:
+    from backend.database import init_db, get_db
+    
+    # Initialize database
+    init_db()
+    
+    # Get collection for document storage
+    collection = get_db()
 """
 import os
 import sys
