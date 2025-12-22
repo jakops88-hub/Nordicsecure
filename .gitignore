@@ -24,6 +24,7 @@ wheels/
 venv/
 ENV/
 env/
+venv_build/
 
 # IDEs
 .vscode/
@@ -56,3 +57,33 @@ temp/
 private_key.txt
 public_key.txt
 license_*.key
+
+# ChromaDB data directory
+data/
+chroma_db/
+
+# External binaries (too large for git)
+bin/
+!bin/.gitkeep
+
+# PyInstaller build artifacts
+*.spec.bak
+build/
+dist/
+
+# Inno Setup output
+Output/
+*.exe
+
+# Model cache (large files)
+.cache/
+models/
+*.bin
+*.onnx
+*.pt
+*.pth
+
+# OS specific
+.DS_Store
+Thumbs.db
+desktop.ini

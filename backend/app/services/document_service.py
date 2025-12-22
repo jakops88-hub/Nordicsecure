@@ -3,10 +3,14 @@ DocumentService - Core service for PDF parsing and document storage
 Migrated from:
 - pdf-api: extractionService.ts (PDF parsing, OCR, table extraction)
 - Long-Term-Memory-API: worker.ts (vector embeddings, storage)
+
+Updated to use ChromaDB for native Windows deployment.
 """
 
 import io
 import re
+import os
+import sys
 import logging
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
@@ -26,9 +30,9 @@ except ImportError:
     SentenceTransformer = None
 
 try:
-    import psycopg2
+    import chromadb
 except ImportError:
-    psycopg2 = None
+    chromadb = None
 
 logger = logging.getLogger(__name__)
 
@@ -60,19 +64,21 @@ class DocumentService:
     def __init__(
         self,
         embedding_model: str = "all-MiniLM-L6-v2",
-        db_config: Optional[Dict[str, Any]] = None
+        collection=None
     ):
         """
         Initialize DocumentService.
         
         Args:
             embedding_model: Name of sentence-transformers model for embeddings
-            db_config: PostgreSQL connection configuration
+            collection: ChromaDB collection instance (optional)
         """
         self.embedding_model_name = embedding_model
         self.embedding_model = None
-        self.db_config = db_config or {}
-        self.db_conn = None
+        self.collection = collection
+        
+        # Set portable Tesseract path for PyInstaller
+        self._configure_tesseract_path()
         
         # Initialize embedding model lazily
         if SentenceTransformer is not None:
@@ -81,6 +87,30 @@ class DocumentService:
                 logger.info(f"Loaded embedding model: {embedding_model}")
             except Exception as e:
                 logger.warning(f"Failed to load embedding model: {e}")
+    
+    def _configure_tesseract_path(self):
+        """
+        Configure Tesseract OCR path for portable deployment.
+        Points to ./bin/tesseract/tesseract.exe for PyInstaller bundles.
+        """
+        if pytesseract is None:
+            return
+        
+        # Check if running as PyInstaller bundle
+        if getattr(sys, '_MEIPASS', None):
+            # Running as executable
+            base_dir = sys._MEIPASS
+        else:
+            # Running as script - go up to project root
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        
+        tesseract_path = os.path.join(base_dir, 'bin', 'tesseract', 'tesseract.exe')
+        
+        if os.path.exists(tesseract_path):
+            pytesseract.pytesseract.tesseract_cmd = tesseract_path
+            logger.info(f"Using portable Tesseract at: {tesseract_path}")
+        else:
+            logger.warning(f"Tesseract not found at: {tesseract_path}. Will use system default.")
     
     def parse_pdf(self, file: bytes, filename: str = "document.pdf") -> Dict[str, Any]:
         """
@@ -543,11 +573,11 @@ class DocumentService:
         metadata: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
-        Store document with vector embeddings in PostgreSQL.
+        Store document with vector embeddings in ChromaDB.
         
-        Implements storage logic from Long-Term-Memory-API/worker.ts:
+        Implements storage logic using ChromaDB instead of PostgreSQL:
         - Generates embedding from text using sentence-transformers
-        - Stores in PostgreSQL with pgvector extension
+        - Stores in ChromaDB with metadata
         - Returns document ID and storage details
         
         Args:
@@ -567,10 +597,16 @@ class DocumentService:
                 "Install sentence-transformers: pip install sentence-transformers"
             )
         
-        if psycopg2 is None:
+        if chromadb is None:
             raise ImportError(
-                "psycopg2 is required for database storage. "
-                "Install with: pip install psycopg2-binary"
+                "chromadb is required for database storage. "
+                "Install with: pip install chromadb"
+            )
+        
+        if self.collection is None:
+            raise RuntimeError(
+                "ChromaDB collection not initialized. "
+                "Pass collection instance to DocumentService constructor."
             )
         
         logger.info("Generating embedding for document")
@@ -583,63 +619,84 @@ class DocumentService:
         
         # Step 2: Prepare metadata
         metadata = metadata or {}
-        metadata["stored_at"] = datetime.utcnow().isoformat()
+        stored_at = datetime.utcnow().isoformat()
+        metadata["stored_at"] = stored_at
         
-        # Step 3: Store in database
-        if not self.db_conn:
-            self._connect_db()
+        # Step 3: Generate document ID (using timestamp + hash)
+        import hashlib
+        doc_hash = hashlib.md5(text.encode()).hexdigest()[:8]
+        doc_id = f"doc_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{doc_hash}"
         
+        # Step 4: Store in ChromaDB
         try:
-            with self.db_conn.cursor() as cursor:
-                # Create table if not exists
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS documents (
-                        id SERIAL PRIMARY KEY,
-                        text TEXT NOT NULL,
-                        embedding vector(%s),
-                        metadata JSONB,
-                        created_at TIMESTAMP DEFAULT NOW()
-                    )
-                """, (len(embedding_list),))
-                
-                # Insert document
-                cursor.execute("""
-                    INSERT INTO documents (text, embedding, metadata, created_at)
-                    VALUES (%s, %s::vector, %s::jsonb, NOW())
-                    RETURNING id, created_at
-                """, (
-                    text,
-                    f"[{','.join(map(str, embedding_list))}]",
-                    psycopg2.extras.Json(metadata)
-                ))
-                
-                doc_id, created_at = cursor.fetchone()
-                self.db_conn.commit()
-                
-                logger.info(f"Stored document with ID: {doc_id}")
-                
-                return {
-                    "document_id": doc_id,
-                    "embedding_dim": len(embedding_list),
-                    "stored_at": created_at.isoformat(),
-                    "metadata": metadata
-                }
+            self.collection.add(
+                embeddings=[embedding_list],
+                documents=[text],
+                metadatas=[metadata],
+                ids=[doc_id]
+            )
+            
+            logger.info(f"Stored document with ID: {doc_id}")
+            
+            return {
+                "document_id": doc_id,
+                "embedding_dim": len(embedding_list),
+                "stored_at": stored_at,
+                "metadata": metadata
+            }
         
         except Exception as e:
-            self.db_conn.rollback()
             logger.error(f"Failed to store document: {e}")
             raise
     
-    def _connect_db(self):
-        """Connect to PostgreSQL database."""
-        if not self.db_config:
-            raise ValueError("Database configuration not provided")
+    def search_documents(
+        self,
+        query_text: str,
+        limit: int = 5
+    ) -> List[Dict[str, Any]]:
+        """
+        Search for similar documents using vector similarity.
         
-        self.db_conn = psycopg2.connect(**self.db_config)
-        logger.info("Connected to PostgreSQL database")
-    
-    def close(self):
-        """Close database connection."""
-        if self.db_conn:
-            self.db_conn.close()
-            logger.info("Closed database connection")
+        Args:
+            query_text: Query text to search for
+            limit: Maximum number of results to return
+            
+        Returns:
+            List of matching documents with similarity scores
+        """
+        if self.embedding_model is None:
+            raise RuntimeError("Embedding model not initialized")
+        
+        if self.collection is None:
+            raise RuntimeError("ChromaDB collection not initialized")
+        
+        logger.info(f"Searching for: {query_text}")
+        
+        # Generate query embedding
+        query_embedding = self.embedding_model.encode(query_text, convert_to_numpy=True)
+        query_embedding_list = query_embedding.tolist()
+        
+        # Search in ChromaDB
+        try:
+            results = self.collection.query(
+                query_embeddings=[query_embedding_list],
+                n_results=limit
+            )
+            
+            # Format results
+            formatted_results = []
+            if results and results['documents'] and len(results['documents']) > 0:
+                for i in range(len(results['documents'][0])):
+                    formatted_results.append({
+                        "id": results['ids'][0][i] if results['ids'] else None,
+                        "document": results['documents'][0][i],
+                        "metadata": results['metadatas'][0][i] if results['metadatas'] else {},
+                        "distance": results['distances'][0][i] if results['distances'] else None
+                    })
+            
+            logger.info(f"Found {len(formatted_results)} matching documents")
+            return formatted_results
+        
+        except Exception as e:
+            logger.error(f"Search failed: {e}")
+            raise

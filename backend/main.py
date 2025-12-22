@@ -1,7 +1,6 @@
-from fastapi import FastAPI, File, UploadFile, Depends, HTTPException, Request
+from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 from contextlib import asynccontextmanager
 import tempfile
 import os
@@ -9,18 +8,36 @@ import logging
 from typing import List, Dict, Any
 
 from database import get_db, init_db
-from document_service import DocumentService
+from app.services.document_service import DocumentService
 from app.license_manager import get_license_verifier, LicenseExpiredError, LicenseInvalidError
 
 # Configure logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Global document service instance
+document_service = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize database on startup"""
+    """Initialize database and document service on startup"""
+    global document_service
+    
+    # Initialize ChromaDB
     init_db()
+    
+    # Get ChromaDB collection
+    collection = get_db()
+    
+    # Initialize document service with collection
+    document_service = DocumentService(collection=collection)
+    logger.info("Document service initialized with ChromaDB")
+    
     yield
+    
+    # Cleanup on shutdown
+    logger.info("Shutting down application")
 
 
 app = FastAPI(
@@ -29,9 +46,6 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
-
-# Initialize document service
-document_service = DocumentService()
 
 
 # License verification middleware
@@ -90,7 +104,7 @@ class SearchRequest(BaseModel):
 
 
 class IngestResponse(BaseModel):
-    document_id: int
+    document_id: str
     filename: str
     message: str
 
@@ -106,108 +120,104 @@ async def root():
 
 
 @app.post("/ingest", response_model=IngestResponse)
-async def ingest_document(
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db)
-):
+async def ingest_document(file: UploadFile = File(...)):
     """
     Ingest a PDF document.
     
     This endpoint:
     1. Receives an uploaded PDF file
-    2. Parses the text using PyPDF2 and/or OCR (Tesseract)
-    3. Generates embeddings using Ollama
-    4. Saves the document and embeddings to PostgreSQL
+    2. Parses the text and metadata using PyPDF2 and/or OCR (Tesseract)
+    3. Generates embeddings using sentence-transformers
+    4. Saves the document and embeddings to ChromaDB
     
     Args:
         file: PDF file to ingest
-        db: Database session
         
     Returns:
         Document ID and confirmation message
     """
+    global document_service
+    
+    if document_service is None:
+        raise HTTPException(status_code=500, detail="Document service not initialized")
+    
     # Validate file type
     if not file.filename.lower().endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
     
     try:
-        # Save uploaded file to temporary location
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
-            content = await file.read()
-            tmp_file.write(content)
-            tmp_file_path = tmp_file.name
+        # Read file content
+        content = await file.read()
         
-        try:
-            # Parse PDF to extract text
-            text_content = document_service.parse_pdf(tmp_file_path)
-            
-            if not text_content.strip():
-                raise HTTPException(
-                    status_code=400, 
-                    detail="No text content could be extracted from the PDF"
-                )
-            
-            # Generate embedding for the document
-            embedding = document_service.generate_embedding(text_content)
-            
-            # Save to database
-            document_id = document_service.save_document(
-                db=db,
-                filename=file.filename,
-                content=text_content,
-                embedding=embedding
-            )
-            
-            return IngestResponse(
-                document_id=document_id,
-                filename=file.filename,
-                message="Document ingested successfully"
+        # Parse PDF to extract text and metadata
+        parsed_data = document_service.parse_pdf(content, filename=file.filename)
+        
+        # Extract raw text
+        text_content = parsed_data.get("raw_text", "")
+        
+        if not text_content.strip():
+            raise HTTPException(
+                status_code=400, 
+                detail="No text content could be extracted from the PDF"
             )
         
-        finally:
-            # Clean up temporary file
-            if os.path.exists(tmp_file_path):
-                os.unlink(tmp_file_path)
+        # Prepare metadata
+        metadata = {
+            "filename": file.filename,
+            "pages_count": parsed_data.get("metadata", {}).get("pages_count", 0),
+            "detected_language": parsed_data.get("metadata", {}).get("detected_language", "unknown"),
+            "key_values": parsed_data.get("key_values", {}),
+        }
+        
+        # Store document with embeddings
+        result = document_service.store_document(
+            text=text_content,
+            metadata=metadata
+        )
+        
+        return IngestResponse(
+            document_id=result["document_id"],
+            filename=file.filename,
+            message="Document ingested successfully"
+        )
     
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error ingesting document: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error ingesting document: {str(e)}")
 
 
 @app.post("/search", response_model=SearchResponse)
-async def search_documents(
-    request: SearchRequest,
-    db: Session = Depends(get_db)
-):
+async def search_documents(request: SearchRequest):
     """
     Search for documents using semantic similarity.
     
     This endpoint:
     1. Receives a search query string
-    2. Converts the query to an embedding using Ollama
-    3. Searches PostgreSQL for matching documents using cosine similarity
+    2. Converts the query to an embedding using sentence-transformers
+    3. Searches ChromaDB for matching documents using cosine similarity
     4. Returns the most relevant documents
     
     Args:
         request: Search request containing query string
-        db: Database session
         
     Returns:
         List of matching documents with similarity scores
     """
+    global document_service
+    
+    if document_service is None:
+        raise HTTPException(status_code=500, detail="Document service not initialized")
+    
     try:
         # Validate query
         if not request.query.strip():
             raise HTTPException(status_code=400, detail="Query cannot be empty")
         
-        # Generate embedding for the query
-        query_embedding = document_service.generate_embedding(request.query)
-        
         # Search for similar documents
         results = document_service.search_documents(
-            db=db,
-            query_embedding=query_embedding,
+            query_text=request.query,
             limit=5
         )
         
@@ -216,6 +226,7 @@ async def search_documents(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error searching documents: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error searching documents: {str(e)}")
 
 
