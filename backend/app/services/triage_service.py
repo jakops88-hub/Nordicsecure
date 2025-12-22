@@ -11,11 +11,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
 import pandas as pd
-
-try:
-    import requests
-except ImportError:
-    requests = None
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -90,13 +86,6 @@ Does this document match the criteria? Respond in JSON format only."""
         
         for attempt in range(max_retries + 1):
             try:
-                if requests is None:
-                    logger.error("requests library not available")
-                    return {
-                        "is_relevant": False,
-                        "reason": "Classification service unavailable"
-                    }
-                
                 # Call Ollama API
                 response = requests.post(
                     f"{self.ollama_base_url}/api/generate",
@@ -237,17 +226,16 @@ Does this document match the criteria? Respond in JSON format only."""
             with open(file_path, 'rb') as f:
                 file_content = f.read()
             
-            # Extract text with max_pages limit
-            # Note: We'll update document_service to support max_pages
+            # Extract text with max_pages limit for lazy loading
             parsed_data = self.document_service.parse_pdf(
                 file_content,
-                filename=filename
+                filename=filename,
+                max_pages=max_pages
             )
             
-            # Limit text to first N pages
+            # Get text from parsed pages
             pages = parsed_data.get("pages", [])
-            limited_pages = pages[:max_pages]
-            text = "\n".join(page.get("text", "") for page in limited_pages)
+            text = "\n".join(page.get("text", "") for page in pages)
             
             if not text.strip():
                 raise ValueError("No text could be extracted from document")
