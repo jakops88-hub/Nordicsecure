@@ -28,6 +28,9 @@ class TriageService:
     - Audit trail: Logs all decisions for compliance
     """
     
+    # Maximum characters to send to LLM for classification (to avoid token limits)
+    MAX_TEXT_LENGTH = 3000
+    
     def __init__(
         self,
         document_service,
@@ -80,7 +83,7 @@ Response format:
         user_prompt = f"""Classification Criteria: {criteria}
 
 Document Text (excerpt):
-{text[:3000]}
+{text[:self.MAX_TEXT_LENGTH]}
 
 Does this document match the criteria? Respond in JSON format only."""
         
@@ -324,8 +327,13 @@ Does this document match the criteria? Respond in JSON format only."""
         target_relevant_path.mkdir(parents=True, exist_ok=True)
         target_irrelevant_path.mkdir(parents=True, exist_ok=True)
         
-        # Find all PDF files (case-insensitive)
-        pdf_files = list(source_path.glob("*.pdf")) + list(source_path.glob("*.PDF"))
+        # Find all PDF files (case-insensitive using iglob)
+        pdf_files = []
+        for pattern in ['*.pdf', '*.PDF', '*.Pdf']:
+            pdf_files.extend(source_path.glob(pattern))
+        
+        # Remove duplicates (same file matched multiple times)
+        pdf_files = list(set(pdf_files))
         total_files = len(pdf_files)
         
         logger.info(f"Found {total_files} PDF files to process")

@@ -3,6 +3,7 @@ import requests
 import os
 import tempfile
 import io
+import pandas as pd
 from datetime import datetime
 from pathlib import Path
 
@@ -262,7 +263,6 @@ def main():
                         if "audit_log" in result and result["audit_log"]:
                             st.subheader(t["audit_log_title"])
                             
-                            import pandas as pd
                             df = pd.DataFrame(result["audit_log"])
                             st.dataframe(df, use_container_width=True)
                             
