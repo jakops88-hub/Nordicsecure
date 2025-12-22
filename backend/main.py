@@ -169,10 +169,14 @@ async def ingest_document(file: UploadFile = File(...)):
             "key_values": parsed_data.get("key_values", {}),
         }
         
-        # Store document with embeddings
+        # Get pages information for precise source tracking
+        pages = parsed_data.get("pages", [])
+        
+        # Store document with embeddings, using page-level chunking
         result = document_service.store_document(
             text=text_content,
-            metadata=metadata
+            metadata=metadata,
+            pages=pages
         )
         
         return IngestResponse(

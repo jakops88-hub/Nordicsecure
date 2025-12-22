@@ -5,6 +5,7 @@ Nordic Secure Private, offline RAG infrastructure for regulated industries. A so
 ## Features
 
 - **🎨 Streamlit Frontend**: User-friendly web interface for document upload and chat-based search
+- **📍 Source Citation**: Search results include page and line numbers for easy verification and auditability
 - **PDF Document Ingestion**: Upload PDF files with automatic text extraction using PyPDF2 and OCR (Tesseract)
 - **Semantic Search**: Search documents using natural language queries with embeddings
 - **100% Local**: All processing happens locally using Ollama for embeddings
@@ -80,7 +81,7 @@ curl -X POST "http://localhost:8000/ingest" \
 
 ### POST /search
 
-Search for documents using a text query.
+Search for documents using a text query. Returns results with **source citations** (page and line numbers) for easy verification.
 
 **Request:**
 ```bash
@@ -94,14 +95,28 @@ curl -X POST "http://localhost:8000/search" \
 {
   "results": [
     {
-      "id": 1,
-      "filename": "policy.pdf",
-      "content": "...",
-      "similarity": 0.85
+      "id": "doc_20241220_page2_abc123",
+      "document": "Full text of the matching page...",
+      "metadata": {
+        "filename": "policy.pdf",
+        "page_number": 2,
+        "total_pages": 10
+      },
+      "distance": 0.15,
+      "page": 2,
+      "row": 15,
+      "matched_line": "Data retention policy: 7 years for financial records"
     }
   ]
 }
 ```
+
+**Source Citation Fields:**
+- `page`: The page number in the original PDF where the information was found
+- `row`: The line number within that page
+- `matched_line`: The specific line of text that matched the query
+
+This allows customers to manually verify information by looking at **Page X, Line Y** in the original document.
 
 ### GET /
 

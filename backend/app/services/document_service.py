@@ -62,6 +62,9 @@ class DocumentService:
         "kr", "dkk", "nok", "usd", "eur", "$", "€"
     ]
     
+    # Placeholder text for empty pages (maintains consistent page numbering)
+    EMPTY_PAGE_PLACEHOLDER = "[Empty page {}]"
+    
     def __init__(
         self,
         embedding_model: str = "all-MiniLM-L6-v2",
@@ -571,7 +574,8 @@ class DocumentService:
     def store_document(
         self,
         text: str,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        pages: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         """
         Store document with vector embeddings in ChromaDB.
@@ -581,13 +585,18 @@ class DocumentService:
         - Stores in ChromaDB with metadata
         - Returns document ID and storage details
         
+        If pages are provided, stores each page as a separate chunk for precise
+        source citation (page and line numbers).
+        
         Args:
-            text: Document text to store
+            text: Document text to store (used if pages not provided)
             metadata: Optional metadata (filename, user_id, etc.)
+            pages: Optional list of pages with structure [{"page_number": int, "text": str}]
             
         Returns:
             Dictionary containing:
-            - document_id: Generated document ID
+            - document_id: Generated document ID (or base ID if pages provided)
+            - chunks_stored: Number of chunks stored
             - embedding_dim: Dimension of embedding vector
             - stored_at: Timestamp
             - metadata: Stored metadata
@@ -610,44 +619,169 @@ class DocumentService:
                 "Pass collection instance to DocumentService constructor."
             )
         
-        logger.info("Generating embedding for document")
-        
-        # Step 1: Generate embedding
-        embedding = self.embedding_model.encode(text, convert_to_numpy=True)
-        embedding_list = embedding.tolist()
-        
-        logger.info(f"Generated {len(embedding_list)}-dimensional embedding")
-        
-        # Step 2: Prepare metadata
-        metadata = metadata or {}
         stored_at = datetime.utcnow().isoformat()
-        metadata["stored_at"] = stored_at
+        base_metadata = metadata or {}
+        base_metadata["stored_at"] = stored_at
         
-        # Step 3: Generate document ID (using timestamp + hash)
-        doc_hash = hashlib.md5(text.encode()).hexdigest()[:8]
-        doc_id = f"doc_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{doc_hash}"
+        # Generate base document ID
+        timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
         
-        # Step 4: Store in ChromaDB
-        try:
-            self.collection.add(
-                embeddings=[embedding_list],
-                documents=[text],
-                metadatas=[metadata],
-                ids=[doc_id]
-            )
+        # If pages provided, store each page as a separate chunk
+        if pages and len(pages) > 0:
+            logger.info(f"Storing document with {len(pages)} page chunks")
             
-            logger.info(f"Stored document with ID: {doc_id}")
+            embeddings_list = []
+            documents_list = []
+            metadatas_list = []
+            ids_list = []
             
-            return {
-                "document_id": doc_id,
-                "embedding_dim": len(embedding_list),
-                "stored_at": stored_at,
-                "metadata": metadata
-            }
+            for page in pages:
+                page_num = page.get("page_number", 0)
+                page_text = page.get("text", "")
+                
+                # Store even empty pages to maintain consistent page numbering
+                # Use placeholder text for empty pages
+                if not page_text.strip():
+                    page_text = self.EMPTY_PAGE_PLACEHOLDER.format(page_num)
+                    logger.debug(f"Page {page_num} is empty, using placeholder")
+                
+                # Generate embedding for this page
+                embedding = self.embedding_model.encode(page_text, convert_to_numpy=True)
+                embeddings_list.append(embedding.tolist())
+                documents_list.append(page_text)
+                
+                # Create page-specific metadata
+                page_metadata = base_metadata.copy()
+                page_metadata["page_number"] = page_num
+                page_metadata["total_pages"] = len(pages)
+                metadatas_list.append(page_metadata)
+                
+                # Create page-specific ID
+                page_hash = hashlib.md5(page_text.encode()).hexdigest()[:8]
+                page_id = f"doc_{timestamp}_page{page_num}_{page_hash}"
+                ids_list.append(page_id)
+            
+            if not embeddings_list:
+                raise ValueError("No valid pages with text content found")
+            
+            # Store all pages in ChromaDB
+            try:
+                self.collection.add(
+                    embeddings=embeddings_list,
+                    documents=documents_list,
+                    metadatas=metadatas_list,
+                    ids=ids_list
+                )
+                
+                logger.info(f"Stored {len(embeddings_list)} page chunks")
+                
+                return {
+                    "document_id": f"doc_{timestamp}",
+                    "chunks_stored": len(embeddings_list),
+                    "embedding_dim": len(embeddings_list[0]) if embeddings_list else 0,
+                    "stored_at": stored_at,
+                    "metadata": base_metadata
+                }
+            
+            except Exception as e:
+                logger.error(f"Failed to store document pages: {e}")
+                raise
         
-        except Exception as e:
-            logger.error(f"Failed to store document: {e}")
-            raise
+        else:
+            # Legacy behavior: store entire document as single chunk
+            logger.info("Storing document as single chunk")
+            
+            # Step 1: Generate embedding
+            embedding = self.embedding_model.encode(text, convert_to_numpy=True)
+            embedding_list = embedding.tolist()
+            
+            logger.info(f"Generated {len(embedding_list)}-dimensional embedding")
+            
+            # Step 2: Generate document ID
+            doc_hash = hashlib.md5(text.encode()).hexdigest()[:8]
+            doc_id = f"doc_{timestamp}_{doc_hash}"
+            
+            # Step 3: Store in ChromaDB
+            try:
+                self.collection.add(
+                    embeddings=[embedding_list],
+                    documents=[text],
+                    metadatas=[base_metadata],
+                    ids=[doc_id]
+                )
+                
+                logger.info(f"Stored document with ID: {doc_id}")
+                
+                return {
+                    "document_id": doc_id,
+                    "chunks_stored": 1,
+                    "embedding_dim": len(embedding_list),
+                    "stored_at": stored_at,
+                    "metadata": base_metadata
+                }
+            
+            except Exception as e:
+                logger.error(f"Failed to store document: {e}")
+                raise
+    
+    def _find_best_matching_line(
+        self,
+        text: str,
+        query_text: str
+    ) -> Tuple[int, str]:
+        """
+        Find the best matching line in text for a query.
+        
+        Args:
+            text: The document text to search in
+            query_text: The query text to search for
+            
+        Returns:
+            Tuple of (line_number, matched_line_text)
+            Returns (1, first_line) if no good match found
+        """
+        lines = text.split('\n')
+        if not lines:
+            return (1, "")
+        
+        # Normalize query once for better performance
+        query_lower = query_text.lower()
+        query_words = set(query_lower.split())
+        
+        # Pre-compute lowercased lines for efficiency
+        lines_lower = [line.lower() for line in lines]
+        
+        best_line_num = 1
+        best_score = 0
+        best_line_text = lines[0] if lines else ""
+        
+        for i, (line, line_lower) in enumerate(zip(lines, lines_lower), start=1):
+            if not line.strip():
+                continue
+            
+            # Check for exact phrase match first (most important)
+            if query_lower in line_lower:
+                return (i, line.strip())
+            
+            # Calculate word overlap score
+            line_words = set(line_lower.split())
+            overlap = len(query_words & line_words)
+            
+            if overlap > best_score:
+                best_score = overlap
+                best_line_num = i
+                best_line_text = line.strip()
+        
+        # Return best match found, or first non-empty line
+        if best_score > 0:
+            return (best_line_num, best_line_text)
+        
+        # Fallback: return first non-empty line
+        for i, line in enumerate(lines, start=1):
+            if line.strip():
+                return (i, line.strip())
+        
+        return (1, best_line_text)
     
     def search_documents(
         self,
@@ -662,7 +796,14 @@ class DocumentService:
             limit: Maximum number of results to return
             
         Returns:
-            List of matching documents with similarity scores
+            List of matching documents with similarity scores and source citations
+            Each result includes:
+            - id: Document/chunk ID
+            - document: Full text of the matching chunk
+            - metadata: Document metadata including filename
+            - distance: Similarity distance (lower is better)
+            - page: Page number where match was found (if available)
+            - row: Line/row number within the page (if available)
         """
         if self.embedding_model is None:
             raise RuntimeError("Embedding model not initialized")
@@ -683,18 +824,36 @@ class DocumentService:
                 n_results=limit
             )
             
-            # Format results
+            # Format results with source citations
             formatted_results = []
             if results and results['documents'] and len(results['documents']) > 0:
                 for i in range(len(results['documents'][0])):
-                    formatted_results.append({
+                    doc_text = results['documents'][0][i]
+                    metadata = results['metadatas'][0][i] if results['metadatas'] else {}
+                    
+                    # Extract page number from metadata
+                    page_number = metadata.get('page_number')
+                    
+                    # Find best matching line in the document
+                    line_number, matched_line = self._find_best_matching_line(doc_text, query_text)
+                    
+                    result = {
                         "id": results['ids'][0][i] if results['ids'] else None,
-                        "document": results['documents'][0][i],
-                        "metadata": results['metadatas'][0][i] if results['metadatas'] else {},
-                        "distance": results['distances'][0][i] if results['distances'] else None
-                    })
+                        "document": doc_text,
+                        "metadata": metadata,
+                        "distance": results['distances'][0][i] if results['distances'] else None,
+                    }
+                    
+                    # Add source citation information
+                    if page_number is not None:
+                        result["page"] = page_number
+                    
+                    result["row"] = line_number
+                    result["matched_line"] = matched_line
+                    
+                    formatted_results.append(result)
             
-            logger.info(f"Found {len(formatted_results)} matching documents")
+            logger.info(f"Found {len(formatted_results)} matching documents with source citations")
             return formatted_results
         
         except Exception as e:
