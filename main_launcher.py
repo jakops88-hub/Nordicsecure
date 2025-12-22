@@ -55,6 +55,7 @@ class ServiceManager:
         self.backend_thread: Optional[threading.Thread] = None
         self.frontend_thread: Optional[threading.Thread] = None
         self.shutdown_event = threading.Event()
+        self.backend_should_stop = threading.Event()
         
     def start_backend(self):
         """
@@ -125,8 +126,11 @@ class ServiceManager:
             ]
             
             # Run Streamlit
-            sys.exit(stcli.main())
+            stcli.main()
             
+        except SystemExit as e:
+            # Streamlit calls sys.exit() when it shuts down normally
+            logger.info(f"Streamlit exited with code: {e.code}")
         except Exception as e:
             logger.error(f"Error in frontend: {e}", exc_info=True)
             with open("debug.log", "a") as f:
@@ -148,7 +152,8 @@ class ServiceManager:
             
             # Start backend in a separate thread
             logger.info("Starting Backend (FastAPI) in thread...")
-            self.backend_thread = threading.Thread(target=self.start_backend, daemon=True)
+            # Use daemon=False to allow proper cleanup
+            self.backend_thread = threading.Thread(target=self.start_backend, daemon=False)
             self.backend_thread.start()
             
             # Give backend time to start

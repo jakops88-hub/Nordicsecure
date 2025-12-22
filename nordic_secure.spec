@@ -173,7 +173,7 @@ a = Analysis(
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=['hook-streamlit.py'],
+    runtime_hooks=[os.path.abspath('hook-streamlit.py')],
     excludes=[
         # Exclude unnecessary packages to reduce size
         'matplotlib',
