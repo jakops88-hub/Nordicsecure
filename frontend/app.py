@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import os
 import pandas as pd
+import traceback
 from datetime import datetime, timezone
 
 # Backend URL from environment variable or default
@@ -513,17 +514,18 @@ def main():
         error_msg = "⚠️ Ett fel uppstod"
         restart_msg = "Försök starta om applikationen."
         
+        # Try to use translations if available, but don't fail if not
         try:
-            error_msg = t.get("error_occurred", error_msg)
-            restart_msg = t.get("error_restart_message", restart_msg)
-        except (NameError, KeyError):
+            if 't' in locals():
+                error_msg = t.get("error_occurred", error_msg)
+                restart_msg = t.get("error_restart_message", restart_msg)
+        except:
             pass  # Use fallback messages
         
         st.error(error_msg)
         st.info(restart_msg)
         
-        # Log error for debugging (still write to console/logs)
-        import traceback
+        # Log error for debugging (already imported at top)
         print(f"Error in main UI: {e}")
         print(traceback.format_exc())
 
