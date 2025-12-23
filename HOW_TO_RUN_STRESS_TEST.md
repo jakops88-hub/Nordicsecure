@@ -30,14 +30,20 @@ curl -fsSL https://ollama.ai/install.sh | sh
 
 ### 2. Start Ollama Server
 
+This application uses port **11435** by default to avoid conflicts:
+
 ```bash
+# Set the port to 11435
+export OLLAMA_HOST=127.0.0.1:11435
 ollama serve
 ```
 
 Keep this running in a terminal. It should show:
 ```
-Ollama is running
+Ollama is running on 127.0.0.1:11435
 ```
+
+**Alternative**: If you want to use the standard port 11434, start Ollama normally and update the stress test to use that port.
 
 ### 3. Pull Llama 3 Model
 
@@ -51,8 +57,8 @@ This will download the model (~4GB). Wait for it to complete.
 ### 4. Verify Setup
 
 ```bash
-# Check Ollama is accessible
-curl http://localhost:11434/api/tags
+# Check Ollama is accessible (port 11435)
+curl http://localhost:11435/api/tags
 
 # Should show llama3 in the models list
 ```
@@ -81,7 +87,7 @@ Configuration:
   - Number of PDFs: 20
   - Iterations: 1
   - Total files to process: 20
-  - Ollama URL: http://localhost:11434
+  - Ollama URL: http://localhost:11435
   - Model: llama3
 
 Initializing DocumentService...
@@ -131,14 +137,18 @@ After running the test, verify:
 ## Troubleshooting
 
 ### Error: "Ollama is not accessible"
-**Solution**: Make sure `ollama serve` is running in another terminal
+**Solution**: Make sure `ollama serve` is running on port 11435
+```bash
+export OLLAMA_HOST=127.0.0.1:11435
+ollama serve
+```
 
 ### Error: "Model 'llama3' not found"
 **Solution**: Run `ollama pull llama3` to download the model
 
 ### Warning: "Average time is too low!"
 **Solution**: This means the LLM isn't running. Check:
-1. Ollama is running: `curl http://localhost:11434/api/tags`
+1. Ollama is running on port 11435: `curl http://localhost:11435/api/tags`
 2. Model is available: `ollama list`
 
 ### Import Errors

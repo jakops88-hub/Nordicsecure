@@ -64,11 +64,13 @@ pip install -r requirements.txt
 Before running the test, verify that Ollama is running:
 
 ```bash
-# Check if Ollama is running
-curl http://localhost:11434/api/tags
+# Check if Ollama is running (this application uses port 11435 by default)
+curl http://localhost:11435/api/tags
 
 # Should return a list of models including llama3
 ```
+
+**Note**: This application uses port 11435 to avoid conflicts with system-wide Ollama installations. If you're using the standard Ollama port (11434), update the test parameters accordingly.
 
 ### Basic Usage
 
@@ -137,7 +139,7 @@ Configuration:
   - Number of PDFs: 20
   - Iterations: 1
   - Total files to process: 20
-  - Ollama URL: http://localhost:11434
+  - Ollama URL: http://localhost:11435
   - Model: llama3
 
 Initializing DocumentService...
@@ -229,10 +231,12 @@ You can modify the test parameters in `test_pdf_stress.py`:
 stress_test = PDFStressTest(
     num_pdfs=20,           # Number of PDFs to generate
     iterations=1,          # Number of iterations (keep at 1 for LLM testing)
-    ollama_url="http://localhost:11434",  # Ollama API URL
+    ollama_url="http://localhost:11435",  # Ollama API URL (default: 11435)
     model_name="llama3"    # LLM model name
 )
 ```
+
+**Note**: The default port 11435 matches the TriageService configuration to avoid conflicts with system-wide Ollama. If using standard Ollama on port 11434, update the `ollama_url` parameter.
 
 ## Notes
 
@@ -245,11 +249,15 @@ stress_test = PDFStressTest(
 
 ### Ollama Connection Error
 ```
-ERROR: Ollama is not accessible at http://localhost:11434
+ERROR: Ollama is not accessible at http://localhost:11435
 ```
-**Solution**: Start Ollama server
+**Solution**: Start Ollama server with the correct port
 ```bash
+# This application uses port 11435 by default
+export OLLAMA_HOST=127.0.0.1:11435
 ollama serve
+
+# Or use standard port 11434 and update stress test config
 ```
 
 ### Model Not Found

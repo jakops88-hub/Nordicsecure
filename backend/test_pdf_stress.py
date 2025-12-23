@@ -56,7 +56,7 @@ class PDFStressTest:
     
     # Test configuration for real model inference
     DEFAULT_NUM_PDFS = 20  # Reduced for realistic testing with LLM
-    DEFAULT_OLLAMA_URL = "http://localhost:11434"  # Standard Ollama port
+    DEFAULT_OLLAMA_URL = "http://localhost:11435"  # Match TriageService default (11435 to avoid conflicts)
     DEFAULT_MODEL_NAME = "llama3"
     
     def __init__(
@@ -371,7 +371,7 @@ class PDFStressTest:
                     
                 except Exception as e:
                     print(f"  ERROR processing {pdf['filename']}: {e}")
-                    execution_times.append(time.time() - start_time)
+                    # Track failure time separately, don't add to timing analysis
                     continue
             
             # Force garbage collection after each iteration
