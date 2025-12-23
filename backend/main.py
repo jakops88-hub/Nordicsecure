@@ -9,6 +9,7 @@ from typing import List, Dict, Any, Optional
 from backend.database import get_db, init_db
 from backend.app.services.document_service import DocumentService
 from backend.app.services.triage_service import TriageService
+from backend.app.services.rename_service import RenameService
 from backend.app.license_manager import get_license_verifier, LicenseExpiredError, LicenseInvalidError
 
 # Configure logging
@@ -18,6 +19,7 @@ logger = logging.getLogger(__name__)
 # Global service instances
 document_service = None
 triage_service = None
+rename_service = None
 
 
 @asynccontextmanager
@@ -27,7 +29,7 @@ async def lifespan(app: FastAPI):
     
     Implements robust error handling to prevent silent failures.
     """
-    global document_service, triage_service
+    global document_service, triage_service, rename_service
     
     try:
         # Initialize ChromaDB
@@ -48,6 +50,14 @@ async def lifespan(app: FastAPI):
             model_name=os.getenv("OLLAMA_MODEL", "llama3")
         )
         logger.info("Triage service initialized")
+        
+        # Initialize rename service
+        rename_service = RenameService(
+            document_service=document_service,
+            ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11435"),
+            model_name=os.getenv("OLLAMA_MODEL", "llama3")
+        )
+        logger.info("Rename service initialized")
         
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}", exc_info=True)
@@ -331,6 +341,137 @@ async def batch_triage(request: TriageRequest):
         raise
     except Exception as e:
         logger.error(f"Error in batch triage: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error processing files: {str(e)}")
+
+
+class RenameRequest(BaseModel):
+    file_path: str
+    max_pages: Optional[int] = 3
+
+
+class RenameResponse(BaseModel):
+    original_name: str
+    new_name: str
+    success: bool
+    author: Optional[str]
+    title: Optional[str]
+    confidence: Optional[float]
+    error: Optional[str]
+
+
+@app.post("/rename/single", response_model=RenameResponse)
+async def rename_single_pdf(request: RenameRequest):
+    """
+    Rename a single PDF file based on its content.
+    
+    This endpoint:
+    1. Extracts text from the first 3 pages of the PDF
+    2. Uses LLM to identify Author and Title from content (not filename)
+    3. Renames the file to "Author - Title.pdf" format
+    4. Handles UTF-8 characters (including Punjabi, Arabic, Chinese, etc.)
+    
+    Args:
+        request: Rename request with file path
+        
+    Returns:
+        Rename result with old/new names and extracted metadata
+    """
+    global rename_service
+    
+    if rename_service is None:
+        raise HTTPException(status_code=500, detail="Rename service not initialized")
+    
+    try:
+        from pathlib import Path
+        
+        # Validate file path
+        file_path = Path(request.file_path)
+        if not file_path.exists():
+            raise HTTPException(status_code=400, detail=f"File not found: {request.file_path}")
+        
+        if not file_path.suffix.lower() == '.pdf':
+            raise HTTPException(status_code=400, detail="Only PDF files are supported")
+        
+        # Rename file
+        result = rename_service.rename_single_file(
+            file_path=file_path,
+            max_pages=request.max_pages
+        )
+        
+        return RenameResponse(**result)
+    
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error renaming file: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error renaming file: {str(e)}")
+
+
+class BatchRenameRequest(BaseModel):
+    folder_path: str
+    max_pages: Optional[int] = 3
+
+
+class BatchRenameResponse(BaseModel):
+    total_files: int
+    processed: int
+    renamed: int
+    failed: int
+    rename_log: List[Dict[str, Any]]
+
+
+@app.post("/rename/batch", response_model=BatchRenameResponse)
+async def batch_rename_pdfs(request: BatchRenameRequest):
+    """
+    Batch rename all PDF files in a folder based on their content.
+    
+    This endpoint:
+    1. Finds all PDF files in the specified folder
+    2. Extracts text from first 3 pages of each file
+    3. Uses LLM to identify Author and Title from content
+    4. Renames each file to "Author - Title.pdf" format
+    5. Returns detailed log of all operations
+    
+    Perfect for organizing large book libraries (e.g., 20,000 books).
+    
+    Args:
+        request: Batch rename request with folder path
+        
+    Returns:
+        Statistics and detailed log of all renames
+    """
+    global rename_service
+    
+    if rename_service is None:
+        raise HTTPException(status_code=500, detail="Rename service not initialized")
+    
+    try:
+        from pathlib import Path
+        
+        # Validate folder path
+        folder_path = Path(request.folder_path)
+        if not folder_path.exists():
+            raise HTTPException(status_code=400, detail=f"Folder not found: {request.folder_path}")
+        
+        if not folder_path.is_dir():
+            raise HTTPException(status_code=400, detail=f"Path is not a directory: {request.folder_path}")
+        
+        # Batch rename files
+        result = rename_service.batch_rename(
+            folder_path=str(folder_path),
+            max_pages=request.max_pages
+        )
+        
+        return BatchRenameResponse(**result)
+    
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in batch rename: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error processing files: {str(e)}")
 
 
