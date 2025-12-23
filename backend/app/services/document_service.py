@@ -31,6 +31,11 @@ except ImportError:
     SentenceTransformer = None
 
 try:
+    from backend.app.utils.hardware_detector import get_hardware_detector
+except ImportError:
+    get_hardware_detector = None
+
+try:
     import chromadb
 except ImportError:
     chromadb = None
@@ -84,11 +89,21 @@ class DocumentService:
         # Set portable Tesseract path for PyInstaller
         self._configure_tesseract_path()
         
-        # Initialize embedding model lazily
+        # Initialize embedding model lazily with GPU support
         if SentenceTransformer is not None:
             try:
-                self.embedding_model = SentenceTransformer(embedding_model)
-                logger.info(f"Loaded embedding model: {embedding_model}")
+                # Detect hardware and use appropriate device
+                device = 'cpu'
+                if get_hardware_detector is not None:
+                    try:
+                        hw_detector = get_hardware_detector()
+                        device = hw_detector.get_sentence_transformer_device()
+                        hw_detector.log_hardware_info()
+                    except Exception as hw_error:
+                        logger.warning(f"Hardware detection failed, using CPU: {hw_error}")
+                
+                self.embedding_model = SentenceTransformer(embedding_model, device=device)
+                logger.info(f"Loaded embedding model: {embedding_model} on device: {device}")
             except Exception as e:
                 logger.warning(f"Failed to load embedding model: {e}")
     
