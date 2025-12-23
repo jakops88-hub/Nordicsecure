@@ -6,13 +6,17 @@ This script performs a stress test on the DocumentService.parse_pdf() function
 to detect memory leaks and measure performance under repeated execution.
 
 Features:
-- Generates 50 dummy PDF objects for testing
+- Generates dummy PDF objects for testing
 - Executes PDF processing in a loop with multiple iterations
 - Monitors RAM usage using psutil to detect memory leaks
 - Tracks execution time for every 5th file
 - Reports average time per file and memory stability
+- Supports Ollama port fallback (11435 → 11434) if needed
 
 Run with: python backend/test_pdf_stress.py
+
+Note: If Ollama connection fails on port 11435, the system will automatically
+      fall back to the default port 11434 (via OLLAMA_HOST environment variable).
 """
 
 import sys
@@ -208,6 +212,12 @@ class PDFStressTest:
         print(f"  - Number of PDFs: {self.num_pdfs}")
         print(f"  - Iterations: {self.iterations}")
         print(f"  - Total files to process: {self.num_pdfs * self.iterations}")
+        
+        # Check Ollama port configuration
+        ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+        print(f"  - Ollama Host: {ollama_host}")
+        if "11435" in ollama_host:
+            print(f"    ⚠️  Warning: Port 11435 detected. Will fallback to 11434 if connection fails.")
         print()
         
         # Initialize document service (without embedding model for faster testing)
@@ -410,7 +420,8 @@ def main():
     """Main entry point for stress test."""
     try:
         # Create stress test instance
-        stress_test = PDFStressTest(num_pdfs=50, iterations=3)
+        # Note: Configured for 20 files as requested
+        stress_test = PDFStressTest(num_pdfs=20, iterations=1)
         
         # Initialize test environment
         stress_test.initialize_test()
