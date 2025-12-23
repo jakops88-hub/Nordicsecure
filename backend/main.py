@@ -282,6 +282,7 @@ class TriageRequest(BaseModel):
     target_irrelevant: str
     criteria: str
     max_pages: Optional[int] = 5
+    sampling_strategy: Optional[str] = "linear"
 
 
 class TriageResponse(BaseModel):
@@ -330,7 +331,8 @@ async def batch_triage(request: TriageRequest):
             target_relevant=request.target_relevant,
             target_irrelevant=request.target_irrelevant,
             criteria=request.criteria,
-            max_pages=request.max_pages
+            max_pages=request.max_pages,
+            sampling_strategy=request.sampling_strategy
         )
         
         return TriageResponse(**result)
@@ -347,6 +349,7 @@ async def batch_triage(request: TriageRequest):
 class RenameRequest(BaseModel):
     file_path: str
     max_pages: Optional[int] = 3
+    sampling_strategy: Optional[str] = "linear"
 
 
 class RenameResponse(BaseModel):
@@ -395,7 +398,8 @@ async def rename_single_pdf(request: RenameRequest):
         # Rename file
         result = rename_service.rename_single_file(
             file_path=file_path,
-            max_pages=request.max_pages
+            max_pages=request.max_pages,
+            sampling_strategy=request.sampling_strategy
         )
         
         return RenameResponse(**result)
@@ -412,6 +416,7 @@ async def rename_single_pdf(request: RenameRequest):
 class BatchRenameRequest(BaseModel):
     folder_path: str
     max_pages: Optional[int] = 3
+    sampling_strategy: Optional[str] = "linear"
 
 
 class BatchRenameResponse(BaseModel):
@@ -461,7 +466,8 @@ async def batch_rename_pdfs(request: BatchRenameRequest):
         # Batch rename files
         result = rename_service.batch_rename(
             folder_path=str(folder_path),
-            max_pages=request.max_pages
+            max_pages=request.max_pages,
+            sampling_strategy=request.sampling_strategy
         )
         
         return BatchRenameResponse(**result)
