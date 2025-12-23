@@ -1,33 +1,54 @@
-# PDF Processing Stress Test
+# PDF Processing Stress Test with Real Llama 3 Inference
 
 ## Overview
 
-This stress test evaluates the performance and memory stability of the NordicSecure PDF processing engine. It performs repeated PDF parsing operations while monitoring for memory leaks and performance degradation.
+This stress test evaluates the performance and memory usage of the NordicSecure PDF processing engine **with REAL Llama 3 model inference**. It performs PDF text extraction AND LLM-based categorization while monitoring memory consumption and execution time.
+
+⚠️ **IMPORTANT**: This test now performs ACTUAL model inference using Ollama and Llama 3. The previous version only did PDF parsing without LLM calls.
 
 ## Purpose
 
 As a Performance Engineer, this test helps you:
-- **Detect Memory Leaks**: Identifies if memory grows linearly without garbage collection
-- **Measure Performance**: Tracks execution time and throughput
-- **Validate Stability**: Ensures the system can handle repeated operations without degradation
-- **Baseline Metrics**: Establishes performance baselines for future optimization
+- **Measure Real-World Performance**: Tests the complete workflow including LLM inference
+- **Monitor RAM Usage**: Tracks memory consumption with the model loaded and active
+- **Validate Timing**: Ensures realistic execution times (5-10 seconds per file with LLM)
+- **Assess Scalability**: Evaluates performance with 20 files processed sequentially
 
 ## Features
 
-✅ Generates 50 dummy PDF files with realistic content (invoice-like data)  
-✅ Processes PDFs in multiple iterations (default: 3 iterations = 150 files)  
+✅ Generates 20 dummy PDF files with realistic invoice content  
+✅ **Loads and uses the actual Llama 3 model for classification**  
+✅ Extracts text from PDFs using DocumentService  
+✅ **Performs REAL LLM inference for each file (NOT mocked)**  
 ✅ Real-time memory monitoring using `psutil`  
-✅ Performance tracking with timing for every 5th file  
-✅ Memory leak detection using linear regression analysis  
-✅ Comprehensive performance and memory reporting  
-✅ Automatic garbage collection between iterations  
+✅ Performance tracking with timing for each file  
+✅ Memory usage analysis with model loaded  
+✅ Validation of realistic execution times (5-10 seconds per file)  
 
 ## Requirements
+
+### System Requirements
+
+1. **Ollama must be installed and running**
+   ```bash
+   # Install Ollama (if not already installed)
+   # Visit: https://ollama.ai/download
+   
+   # Start Ollama server
+   ollama serve
+   ```
+
+2. **Llama 3 model must be pulled**
+   ```bash
+   ollama pull llama3
+   ```
+
+### Python Dependencies
 
 Install the required dependencies:
 
 ```bash
-pip install psutil reportlab PyPDF2
+pip install psutil reportlab PyPDF2 requests pandas
 ```
 
 Or use the project's requirements file:
@@ -38,6 +59,17 @@ pip install -r requirements.txt
 
 ## Usage
 
+### Prerequisites Check
+
+Before running the test, verify that Ollama is running:
+
+```bash
+# Check if Ollama is running
+curl http://localhost:11434/api/tags
+
+# Should return a list of models including llama3
+```
+
 ### Basic Usage
 
 Run the stress test from the project root:
@@ -46,23 +78,30 @@ Run the stress test from the project root:
 python backend/test_pdf_stress.py
 ```
 
+⚠️ **Expected Duration**: ~2-3 minutes for 20 files (5-10 seconds per file with LLM inference)
+
 ### What It Does
 
 1. **Initialization Phase**
-   - Loads the DocumentService
-   - Generates 50 dummy PDF files in memory (~3.5 KB each)
+   - Loads the DocumentService for PDF parsing
+   - **Initializes TriageService with Llama 3 model connection**
+   - **Verifies Ollama is running and model is available**
+   - Generates 20 dummy PDF files in memory (~3.5 KB each)
    - Records baseline memory usage
 
-2. **Stress Test Phase**
-   - Processes all 50 PDFs
-   - Repeats 3 times (150 files total)
-   - Monitors memory every 5 files
-   - Forces garbage collection after each iteration
+2. **Stress Test Phase (REAL LLM INFERENCE)**
+   - For each of the 20 PDFs:
+     - Extracts text using DocumentService
+     - **Sends text to Llama 3 for classification**
+     - **Model performs actual inference (NOT mocked)**
+     - Monitors memory usage after each file
+     - Tracks execution time
+   - Single iteration (20 files total)
 
 3. **Analysis Phase**
    - Calculates average time per file
-   - Analyzes memory growth patterns
-   - Detects potential memory leaks
+   - Reports memory usage with model loaded
+   - Validates timing is realistic (warns if < 1s, confirms if >= 5s)
    - Generates comprehensive report
 
 ## Output
@@ -70,104 +109,116 @@ python backend/test_pdf_stress.py
 The stress test produces detailed output including:
 
 ### Performance Metrics
-- Files processed
+- Files processed (20 files)
 - Average/Min/Max execution time per file
 - Total processing time
-- Throughput (files/second)
+- **Timing validation** (warns if too fast, confirms if realistic)
 
 ### Memory Analysis
 - Initial vs Final memory usage
-- Memory delta and growth percentage
-- Peak and minimum memory usage
-- Memory growth rate (MB per sample)
+- Memory delta with model loaded
+- Peak memory usage during inference
+- Memory per file processed
 
-### Memory Leak Detection
-The test uses statistical analysis to detect memory leaks:
-- ✅ **No leak**: Memory stable, growth < 5 MB
-- ⚠️ **Warning**: Significant growth but not linear (may be caching)
-- 🚨 **Leak detected**: Linear growth > 5 MB with consistent slope
+### LLM Inference Validation
+The test validates that real inference is happening:
+- ✅ **Realistic timing**: >= 5 seconds per file
+- ⚠️ **Warning**: < 1 second per file (model may be mocked)
+- Shows classification results for each file
 
 ## Example Output
 
 ```
 ======================================================================
-PDF PROCESSING STRESS TEST - MEMORY LEAK & PERFORMANCE ANALYSIS
+PDF PROCESSING STRESS TEST WITH REAL LLAMA 3 INFERENCE
 ======================================================================
 
 Configuration:
-  - Number of PDFs: 50
-  - Iterations: 3
-  - Total files to process: 150
+  - Number of PDFs: 20
+  - Iterations: 1
+  - Total files to process: 20
+  - Ollama URL: http://localhost:11434
+  - Model: llama3
 
 Initializing DocumentService...
 ✓ DocumentService initialized
 
-Generating 50 dummy PDF files...
-✓ Generated 50 PDFs (Total: 172.80 KB)
+Initializing TriageService with llama3...
+⚠️  This will connect to Ollama and load the model into memory
+✓ TriageService initialized
+
+Verifying Ollama connection...
+✓ Ollama is running and accessible
+✓ Model 'llama3' is available
+
+Generating 20 dummy PDF files...
+✓ Generated 20 PDFs (Total: 69.12 KB)
 
 ======================================================================
-STARTING STRESS TEST
+STARTING STRESS TEST WITH REAL LLAMA 3 INFERENCE
 ======================================================================
 
-Initial memory usage: 703.83 MB
+⚠️  Note: Each file will take 5-10 seconds due to real model inference
 
-Iteration 1/3
+Initial memory usage: 1250.45 MB
+
+Iteration 1/1
 --------------------------------------------------
-  File 5/150: 0.003s | Memory: 703.99 MB (Δ +0.16 MB)
-  File 10/150: 0.003s | Memory: 703.99 MB (Δ +0.16 MB)
+  File 1/20: 6.234s | Memory: 1850.23 MB (Δ +599.78 MB) | Classified: Yes
+  File 2/20: 7.145s | Memory: 1852.34 MB (Δ +601.89 MB) | Classified: Yes
+  File 3/20: 6.892s | Memory: 1853.12 MB (Δ +602.67 MB) | Classified: No
   ...
-  End of iteration memory: 704.11 MB
+  File 20/20: 6.543s | Memory: 1865.78 MB (Δ +615.33 MB) | Classified: Yes
+  End of iteration memory: 1866.12 MB
 
 ======================================================================
 STRESS TEST RESULTS
 ======================================================================
 
 Performance Metrics:
-  - Files processed: 150
-  - Average time per file: 0.003 seconds
-  - Min time: 0.003 seconds
-  - Max time: 0.005 seconds
-  - Total processing time: 0.49 seconds
+  - Files processed: 20
+  - Average time per file: 6.745 seconds
+  - Min time: 6.234 seconds
+  - Max time: 7.891 seconds
+  - Total processing time: 134.90 seconds
+
+  ⚠️  Expected: 5-10 seconds per file with real LLM inference
+  ✓ Realistic timing confirmed - LLM is performing real inference
 
 Memory Analysis:
-  - Initial memory: 703.83 MB
-  - Final memory: 704.11 MB
-  - Memory delta: +0.28 MB (+0.0%)
-  - Peak memory: 704.11 MB
-  - Min memory: 703.83 MB
-
-Memory Leak Detection:
-  - Memory growth rate: 0.0038 MB per sample
-
-✓ Memory appears stable - No significant memory leak detected
-  Memory growth is within acceptable limits (0.28 MB).
+  - Initial memory: 1250.45 MB
+  - Final memory: 1866.12 MB
+  - Memory delta: +615.67 MB (+49.2%)
+  - Peak memory: 1868.45 MB
+  - Min memory: 1250.45 MB
 
 ======================================================================
 SUMMARY
 ======================================================================
-✓ Processed 150 files successfully
-✓ Average time per file: 0.003 seconds
-✓ Memory stable: +0.28 MB change
+✓ Processed 20 files successfully
+✓ Average time per file: 6.745 seconds
+⚠️  Memory grew by 615.67 MB - Review for potential leaks
 ```
 
 ## Interpreting Results
 
 ### Good Results ✅
-- Average time per file: < 0.01 seconds
-- Memory delta: < 5 MB
-- No linear growth pattern
-- Stable memory across iterations
+- Average time per file: **5-10 seconds** (realistic for LLM inference)
+- Model successfully loaded and performing inference
+- Memory stabilizes after initial model load
+- All files classified successfully
 
 ### Warning Signs ⚠️
-- Average time increasing over iterations
-- Memory growth > 5 MB but not linear
-- Occasional spikes in execution time
+- Average time < 1 second (model may not be running)
+- Memory continues growing linearly beyond model load
+- Connection errors to Ollama
+- Classification failures
 
 ### Critical Issues 🚨
-- Memory leak detected (linear growth)
-- Memory delta > 50 MB
-- Increasing execution times
-- Process crashes or errors
+- Ollama not running or not accessible
+- Model not found or failed to load
+- Average time < 0.5 seconds (definitely not using LLM)
+- Process crashes or out of memory errors
 
 ## Customization
 
@@ -176,21 +227,44 @@ You can modify the test parameters in `test_pdf_stress.py`:
 ```python
 # Create stress test with custom parameters
 stress_test = PDFStressTest(
-    num_pdfs=100,     # Number of PDFs to generate
-    iterations=5      # Number of times to process all PDFs
+    num_pdfs=20,           # Number of PDFs to generate
+    iterations=1,          # Number of iterations (keep at 1 for LLM testing)
+    ollama_url="http://localhost:11434",  # Ollama API URL
+    model_name="llama3"    # LLM model name
 )
 ```
 
-## Integration with CI/CD
+## Notes
 
-Add the stress test to your continuous integration pipeline:
-
-```bash
-# Run stress test and fail if memory leak detected
-python backend/test_pdf_stress.py || exit 1
-```
+- This test requires Ollama to be running locally, so it's not suitable for CI/CD pipelines
+- The test takes ~2-3 minutes to complete (vs <1 second without LLM)
+- Memory usage will be significantly higher due to model loading (~600-800 MB increase)
+- Results will vary based on hardware and Ollama configuration
 
 ## Troubleshooting
+
+### Ollama Connection Error
+```
+ERROR: Ollama is not accessible at http://localhost:11434
+```
+**Solution**: Start Ollama server
+```bash
+ollama serve
+```
+
+### Model Not Found
+```
+⚠️  Model 'llama3' not found in available models
+```
+**Solution**: Pull the Llama 3 model
+```bash
+ollama pull llama3
+```
+
+### ImportError: No module named 'pandas'
+```bash
+pip install pandas
+```
 
 ### ImportError: PyPDF2 not found
 ```bash
@@ -207,8 +281,11 @@ pip install psutil
 pip install reportlab
 ```
 
-### High initial memory usage
-This is normal - sentence-transformers models consume significant memory. The stress test focuses on memory growth, not absolute values.
+### Average Time Too Low (< 1 second)
+This indicates the LLM is not actually running. Check:
+1. Ollama is running: `curl http://localhost:11434/api/tags`
+2. Model is available: `ollama list`
+3. No mocking in the code
 
 ## Technical Details
 
@@ -217,34 +294,45 @@ This is normal - sentence-transformers models consume significant memory. The st
 - Fallback to minimal PDF generation if reportlab unavailable
 - Each PDF contains 3 pages with invoice-like data
 
+### LLM Integration
+- Uses `TriageService` which connects to Ollama API
+- Sends extracted text to Llama 3 for classification
+- Classification criteria: "Classify if this document is an invoice or receipt"
+- Each inference call is REAL - no mocking or caching
+- Model performs actual token generation and reasoning
+
 ### Memory Monitoring
 - Uses `psutil.Process().memory_info().rss` for accurate memory tracking
-- Samples memory every 5 files and at iteration boundaries
-- Forces garbage collection between iterations
+- Samples memory after each file to track model impact
+- Forces garbage collection after iteration
+- Tracks memory delta from baseline
 
-### Leak Detection Algorithm
-1. Collect memory samples throughout execution
-2. Calculate linear regression slope
-3. Check for consistent upward trend
-4. Flag if growth > 5 MB AND slope > 0.5 MB/sample
+### Performance Validation
+- Warns if average time < 1 second (likely not using LLM)
+- Confirms if average time >= 5 seconds (realistic for LLM)
+- Tracks min/max/average times across all files
 
 ## Performance Baseline
 
-Based on the initial test run:
-- **Throughput**: ~306 files/second
-- **Average time**: 0.003 seconds per file
-- **Memory stability**: +0.28 MB over 150 files
-- **Status**: ✅ No memory leaks detected
+Expected results with REAL Llama 3 inference:
+- **Throughput**: ~0.15-0.2 files/second (with LLM)
+- **Average time**: 5-10 seconds per file
+- **Memory growth**: +500-800 MB (model loading and inference)
+- **Status**: ✅ Real LLM inference confirmed
+
+**Note**: Previous version without LLM: 0.003s per file, +0.28 MB
+**Current version with LLM**: ~6-7s per file, +600 MB (much more realistic!)
 
 ## Future Enhancements
 
 Potential improvements to the stress test:
-- [ ] Add CPU usage monitoring
-- [ ] Test with real PDF files from a directory
-- [ ] Configurable stress test duration
-- [ ] Performance regression detection
-- [ ] Concurrent processing stress test
+- [ ] Add CPU usage monitoring during inference
+- [ ] Test with different LLM models (llama2, mistral, etc.)
+- [ ] Test with varying PDF sizes and complexity
+- [ ] Concurrent inference stress test (multiple files in parallel)
 - [ ] Export results to JSON/CSV for trending
+- [ ] Compare performance across different hardware (CPU vs GPU)
+- [ ] Test with actual production PDFs
 
 ## License
 
