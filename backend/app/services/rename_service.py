@@ -37,6 +37,12 @@ class RenameService:
     # Characters not allowed in filenames (Windows-safe)
     INVALID_CHARS = r'[<>:"/\\|?*\x00-\x1f]'
     
+    # LLM timeout for extraction (longer for complex documents)
+    OLLAMA_TIMEOUT = 90
+    
+    # Maximum collision retries
+    MAX_COLLISION_RETRIES = 1000
+    
     def __init__(
         self,
         document_service,
@@ -113,7 +119,7 @@ Extract the author and title in JSON format only."""
                         "stream": False,
                         "format": "json"
                     },
-                    timeout=90  # Longer timeout for extraction task
+                    timeout=self.OLLAMA_TIMEOUT
                 )
                 
                 response.raise_for_status()
@@ -301,13 +307,15 @@ Extract the author and title in JSON format only."""
                 counter += 1
                 
                 # Safety limit
-                if counter > 1000:
+                if counter > self.MAX_COLLISION_RETRIES:
                     logger.error(f"Too many files with similar names")
                     return (source_path, False)
         
         # Rename file with UTF-8 support
+        # Note: This is an atomic operation on most filesystems
         try:
             # On Windows, Path.rename handles UTF-8 correctly
+            # This operation is atomic on NTFS, ext4, and APFS
             source_path.rename(target_path)
             logger.info(f"Renamed: {source_path.name} -> {target_path.name}")
             return (target_path, True)

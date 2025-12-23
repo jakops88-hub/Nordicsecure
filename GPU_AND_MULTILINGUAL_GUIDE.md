@@ -230,9 +230,18 @@ For users with **20,000+ books**, performance is critical:
 **Issue**: Hardware detector shows CPU only, but GPU is present
 
 **Solutions:**
-1. Install PyTorch with CUDA support:
+1. Install PyTorch with CUDA support (check your CUDA version first):
    ```bash
+   # Check your CUDA version
+   nvidia-smi
+   
+   # For CUDA 12.1 (adjust based on your version)
    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+   
+   # For CUDA 11.8
+   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+   
+   # See https://pytorch.org/get-started/locally/ for other versions
    ```
 
 2. Verify CUDA installation:
