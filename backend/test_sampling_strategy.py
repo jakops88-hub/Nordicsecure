@@ -34,10 +34,10 @@ class TestSamplingStrategy(unittest.TestCase):
         """Test random strategy picks pages from start, middle, and end"""
         # Test with 10 total pages
         indices = self.service._get_page_indices_to_extract(10, 5, "random")
-        # Should pick page 0 (start), 5 (middle), and 9 (end)
+        # Should pick page 0 (start), 4 (middle), and 9 (end)
         self.assertEqual(len(indices), 3)
         self.assertIn(0, indices)  # First page
-        self.assertIn(5, indices)  # Middle page (10 // 2)
+        self.assertIn(4, indices)  # Middle page ((10-1) // 2)
         self.assertIn(9, indices)  # Last page
         # Should be sorted
         self.assertEqual(indices, sorted(indices))
@@ -63,8 +63,20 @@ class TestSamplingStrategy(unittest.TestCase):
         indices = self.service._get_page_indices_to_extract(100, 5, "random")
         self.assertEqual(len(indices), 3)
         self.assertIn(0, indices)      # First page
-        self.assertIn(50, indices)     # Middle page (100 // 2)
+        self.assertIn(49, indices)     # Middle page ((100-1) // 2)
         self.assertIn(99, indices)     # Last page
+    
+    def test_random_strategy_respects_max_pages_1(self):
+        """Test random strategy respects max_pages=1"""
+        indices = self.service._get_page_indices_to_extract(10, 1, "random")
+        self.assertEqual(indices, [0])
+    
+    def test_random_strategy_respects_max_pages_2(self):
+        """Test random strategy respects max_pages=2"""
+        indices = self.service._get_page_indices_to_extract(10, 2, "random")
+        self.assertEqual(len(indices), 2)
+        self.assertIn(0, indices)  # First page
+        self.assertIn(4, indices)  # Middle page
     
     def test_default_strategy_is_linear(self):
         """Test that default/unknown strategy falls back to linear"""

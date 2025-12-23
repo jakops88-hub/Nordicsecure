@@ -74,11 +74,11 @@ class TestSamplingStrategyIntegration(unittest.TestCase):
         
         # Verify pages are from start (1), middle (5), and end (10)
         page_numbers = [page["page_number"] for page in result["pages"]]
-        self.assertEqual(page_numbers, [1, 6, 10])  # 0-indexed: 0, 5, 9 -> 1-indexed: 1, 6, 10
+        self.assertEqual(page_numbers, [1, 5, 10])  # 0-indexed: 0, 4, 9 -> 1-indexed: 1, 5, 10
         
         # Verify only selected pages were accessed
         mock_reader.pages[0].extract_text.assert_called_once()
-        mock_reader.pages[5].extract_text.assert_called_once()
+        mock_reader.pages[4].extract_text.assert_called_once()
         mock_reader.pages[9].extract_text.assert_called_once()
     
     @patch('backend.app.services.document_service.PyPDF2')

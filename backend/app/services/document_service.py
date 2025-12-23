@@ -266,27 +266,31 @@ class DocumentService:
         max_pages = min(max_pages, total_pages)
         
         if sampling_strategy.lower() == "random":
-            # Random strategy: Pick 3 pages from start, middle, end
-            # Adjust to actual max_pages if it's less than 3
+            # Random strategy: Pick pages from start, middle, end
+            # Respects max_pages limit
             if total_pages == 1:
                 return [0]
             elif total_pages == 2:
-                return [0, 1]
-            elif total_pages <= 3:
-                return list(range(total_pages))
+                return [0, 1][:max_pages]
+            elif total_pages == 3:
+                return [0, 1, 2][:max_pages]
             else:
                 # Pick from start, middle, and end
                 indices = []
                 # First page
                 indices.append(0)
-                # Middle page
-                indices.append(total_pages // 2)
-                # Last page (or close to it)
-                indices.append(total_pages - 1)
                 
-                # If max_pages allows for more, we already have 3
+                # Only add middle and end if max_pages allows
+                if max_pages >= 2:
+                    # Middle page - improved calculation for better representation
+                    indices.append((total_pages - 1) // 2)
+                
+                if max_pages >= 3:
+                    # Last page
+                    indices.append(total_pages - 1)
+                
                 # Sort to maintain order
-                return sorted(indices[:max_pages])
+                return sorted(indices)
         else:
             # Linear strategy (default): First N pages
             return list(range(max_pages))
