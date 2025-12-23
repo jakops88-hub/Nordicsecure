@@ -291,7 +291,7 @@ pip install reportlab
 
 ### Average Time Too Low (< 1 second)
 This indicates the LLM is not actually running. Check:
-1. Ollama is running: `curl http://localhost:11434/api/tags`
+1. Ollama is running: `curl http://localhost:11435/api/tags`
 2. Model is available: `ollama list`
 3. No mocking in the code
 

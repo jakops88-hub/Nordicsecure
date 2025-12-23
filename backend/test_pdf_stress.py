@@ -43,6 +43,11 @@ except ImportError:
     canvas = None
     letter = None
 
+try:
+    import requests
+except ImportError:
+    requests = None
+
 from backend.app.services.document_service import DocumentService
 from backend.app.services.triage_service import TriageService
 
@@ -254,7 +259,8 @@ class PDFStressTest:
         # Verify Ollama is running by making a test call
         print("Verifying Ollama connection...")
         try:
-            import requests
+            if requests is None:
+                raise ImportError("requests library is required for Ollama connection")
             response = requests.get(f"{self.ollama_url}/api/tags", timeout=5)
             if response.status_code == 200:
                 print("✓ Ollama is running and accessible")
@@ -311,6 +317,7 @@ class PDFStressTest:
         # Track memory samples
         memory_samples = [initial_memory]
         execution_times = []
+        failed_files = 0
         
         total_files = self.num_pdfs * self.iterations
         files_processed = 0
@@ -370,8 +377,9 @@ class PDFStressTest:
                     )
                     
                 except Exception as e:
+                    failed_files += 1
                     print(f"  ERROR processing {pdf['filename']}: {e}")
-                    # Track failure time separately, don't add to timing analysis
+                    # Don't add failed operations to timing analysis
                     continue
             
             # Force garbage collection after each iteration
@@ -393,7 +401,8 @@ class PDFStressTest:
             final_memory=final_memory,
             memory_samples=memory_samples,
             execution_times=execution_times,
-            files_processed=files_processed
+            files_processed=files_processed,
+            failed_files=failed_files
         )
     
     def print_results(
@@ -402,7 +411,8 @@ class PDFStressTest:
         final_memory: float,
         memory_samples: List[float],
         execution_times: List[float],
-        files_processed: int
+        files_processed: int,
+        failed_files: int = 0
     ):
         """Print stress test results and analysis."""
         print()
@@ -412,12 +422,16 @@ class PDFStressTest:
         print()
         
         # Performance metrics
+        successful_files = files_processed - failed_files
         avg_time = sum(execution_times) / len(execution_times) if execution_times else 0
         min_time = min(execution_times) if execution_times else 0
         max_time = max(execution_times) if execution_times else 0
         
         print(f"Performance Metrics:")
         print(f"  - Files processed: {files_processed}")
+        print(f"  - Successful: {successful_files}")
+        if failed_files > 0:
+            print(f"  - Failed: {failed_files}")
         print(f"  - Average time per file: {avg_time:.3f} seconds")
         print(f"  - Min time: {min_time:.3f} seconds")
         print(f"  - Max time: {max_time:.3f} seconds")
