@@ -221,7 +221,7 @@ def search_documents(query):
     except Exception as e:
         return {"error": f"Search error: {str(e)}"}
 
-def start_triage(source_folder, target_relevant, target_irrelevant, criteria, max_pages):
+def start_triage(source_folder, target_relevant, target_irrelevant, criteria, max_pages, sampling_strategy="linear"):
     """
     Start triage process for batch file sorting.
     
@@ -231,6 +231,7 @@ def start_triage(source_folder, target_relevant, target_irrelevant, criteria, ma
         target_irrelevant: Path to irrelevant folder
         criteria: Classification criteria
         max_pages: Maximum pages to analyze per document
+        sampling_strategy: Strategy for selecting pages - "linear" or "random"
         
     Returns:
         dict: Triage results with statistics and audit log
@@ -243,7 +244,8 @@ def start_triage(source_folder, target_relevant, target_irrelevant, criteria, ma
                 "target_relevant": target_relevant,
                 "target_irrelevant": target_irrelevant,
                 "criteria": criteria,
-                "max_pages": max_pages
+                "max_pages": max_pages,
+                "sampling_strategy": sampling_strategy
             },
             timeout=TRIAGE_TIMEOUT
         )
@@ -442,6 +444,13 @@ def main():
                     value=5,
                     help=t["max_pages_help"]
                 )
+                
+                sampling_strategy = st.selectbox(
+                    t["sampling_strategy_label"],
+                    options=["linear", "random"],
+                    format_func=lambda x: t[f"sampling_{x}"],
+                    help=t["sampling_strategy_help"]
+                )
             
             criteria = st.text_area(
                 t["sorting_criteria"],
@@ -470,7 +479,8 @@ def main():
                             target_relevant,
                             target_irrelevant,
                             criteria,
-                            max_pages
+                            max_pages,
+                            sampling_strategy
                         )
                         
                         if "error" in result:
@@ -595,6 +605,10 @@ def get_translations(language: str) -> dict:
             "target_irrelevant_help": "Path where non-relevant files will be moved",
             "max_pages_label": "Max Pages to Analyze",
             "max_pages_help": "Limit analysis to first N pages (recommended: 3-5)",
+            "sampling_strategy_label": "📄 Sampling Strategy",
+            "sampling_strategy_help": "Choose how pages are selected for analysis",
+            "sampling_linear": "Linear (First 5 pages)",
+            "sampling_random": "Random (Start, Middle, End)",
             "sorting_criteria": "📋 Sorting Criteria",
             "sorting_criteria_help": "Describe what makes a document relevant",
             "sorting_criteria_placeholder": "E.g., Is this document related to a bankruptcy application?",
@@ -675,6 +689,10 @@ def get_translations(language: str) -> dict:
             "target_irrelevant_help": "Sökväg dit icke-relevanta filer kommer att flyttas",
             "max_pages_label": "Max Sidor att Analysera",
             "max_pages_help": "Begränsa analys till första N sidorna (rekommenderat: 3-5)",
+            "sampling_strategy_label": "📄 Urvalsstrategi",
+            "sampling_strategy_help": "Välj hur sidor väljs för analys",
+            "sampling_linear": "Linjär (Första 5 sidorna)",
+            "sampling_random": "Slumpmässig (Start, Mitten, Slut)",
             "sorting_criteria": "📋 Sorteringskriterier",
             "sorting_criteria_help": "Beskriv vad som gör ett dokument relevant",
             "sorting_criteria_placeholder": "T.ex. Är detta dokument relaterat till en konkursansökan?",

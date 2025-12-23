@@ -55,6 +55,10 @@ class DocumentService:
     - Storage in PostgreSQL with pgvector extension
     """
     
+    # Sampling strategy constants
+    SAMPLING_LINEAR = "linear"
+    SAMPLING_RANDOM = "random"
+    
     # Detection patterns (from pdf-api extractionService.ts)
     DATE_PATTERN = re.compile(
         r'\b(\d{4}[/.\-]\d{1,2}[/.\-]\d{1,2}|\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4})\b'
@@ -131,7 +135,7 @@ class DocumentService:
         else:
             logger.warning(f"Tesseract not found at: {tesseract_path}. Will use system default.")
     
-    def parse_pdf(self, file: bytes, filename: str = "document.pdf", max_pages: Optional[int] = None) -> Dict[str, Any]:
+    def parse_pdf(self, file: bytes, filename: str = "document.pdf", max_pages: Optional[int] = None, sampling_strategy: str = "linear") -> Dict[str, Any]:
         """
         Parse a PDF file and extract text, tables, and metadata.
         
@@ -145,6 +149,7 @@ class DocumentService:
             file: PDF file as bytes
             filename: Name of the file
             max_pages: Optional limit on number of pages to extract (for lazy loading)
+            sampling_strategy: Strategy for selecting pages - "linear" (first N pages) or "random" (pages from start, middle, end)
             
         Returns:
             Dictionary containing:
@@ -180,18 +185,20 @@ class DocumentService:
                 logger.warning(f"PDF {filename} has no pages")
                 raise ValueError("PDF file is empty (0 pages)")
             
-            # Limit pages if max_pages is specified
-            pages_to_extract = page_count if max_pages is None else min(max_pages, page_count)
+            # Determine which pages to extract based on strategy
+            page_indices = self._get_page_indices_to_extract(page_count, max_pages, sampling_strategy)
+            logger.info(f"Using {sampling_strategy} strategy, extracting pages: {[i+1 for i in page_indices]}")
             
-            for i, page in enumerate(pdf_reader.pages[:pages_to_extract]):
+            for page_idx in page_indices:
                 try:
+                    page = pdf_reader.pages[page_idx]
                     page_text = page.extract_text() or ""
                 except Exception as page_error:
-                    logger.warning(f"Error extracting text from page {i + 1}: {page_error}")
+                    logger.warning(f"Error extracting text from page {page_idx + 1}: {page_error}")
                     page_text = ""
                 
                 pages.append({
-                    "page_number": i + 1,
+                    "page_number": page_idx + 1,
                     "text": page_text
                 })
                 raw_text += page_text + "\n"
@@ -200,7 +207,7 @@ class DocumentService:
             if self._is_likely_scanned(raw_text):
                 logger.info("PDF appears to be scanned. Falling back to OCR.")
                 try:
-                    pages, raw_text = self._extract_with_ocr(file, max_pages=max_pages)
+                    pages, raw_text = self._extract_with_ocr(file, max_pages=max_pages, sampling_strategy=sampling_strategy)
                     page_count = len(pages)
                 except ImportError as ocr_error:
                     logger.error(f"OCR not available: {ocr_error}")
@@ -243,6 +250,57 @@ class DocumentService:
         logger.info(f"Successfully extracted {page_count} pages, {len(tables)} tables")
         return result
     
+    def _get_page_indices_to_extract(self, total_pages: int, max_pages: Optional[int], sampling_strategy: str) -> List[int]:
+        """
+        Determine which page indices to extract based on sampling strategy.
+        
+        Args:
+            total_pages: Total number of pages in the PDF
+            max_pages: Maximum number of pages to extract
+            sampling_strategy: "linear" for first N pages, "random" for start/middle/end sampling
+            
+        Returns:
+            List of 0-based page indices to extract
+        """
+        if max_pages is None:
+            # Extract all pages
+            return list(range(total_pages))
+        
+        # Limit to available pages
+        max_pages = min(max_pages, total_pages)
+        
+        if sampling_strategy.lower() == self.SAMPLING_RANDOM:
+            # Random strategy: Pick pages from start, middle, end
+            # Respects max_pages limit
+            if total_pages == 1:
+                return [0]
+            elif total_pages == 2:
+                return [0, 1][:max_pages]
+            elif total_pages == 3:
+                return [0, 1, 2][:max_pages]
+            else:
+                # Pick from start, middle, and end
+                indices = []
+                # First page
+                indices.append(0)
+                
+                # Only add middle and end if max_pages allows
+                if max_pages >= 2:
+                    # Middle page - use (total_pages - 1) // 2 for better representation
+                    # This places the middle page slightly earlier in the document
+                    # (e.g., for 10 pages: page 5 instead of page 6)
+                    indices.append((total_pages - 1) // 2)
+                
+                if max_pages >= 3:
+                    # Last page
+                    indices.append(total_pages - 1)
+                
+                # Sort to maintain order
+                return sorted(indices)
+        else:
+            # Linear strategy (default): First N pages
+            return list(range(max_pages))
+    
     def _is_likely_scanned(self, text: str) -> bool:
         """Check if PDF appears to be scanned (little meaningful text)."""
         if not text or len(text.strip()) < 100:
@@ -251,13 +309,14 @@ class DocumentService:
         alpha_count = sum(c.isalpha() for c in text)
         return alpha_count < len(text) * 0.5
     
-    def _extract_with_ocr(self, file: bytes, max_pages: Optional[int] = None) -> Tuple[List[Dict], str]:
+    def _extract_with_ocr(self, file: bytes, max_pages: Optional[int] = None, sampling_strategy: str = "linear") -> Tuple[List[Dict], str]:
         """
         Extract text from PDF using OCR (for scanned documents).
         
         Args:
             file: PDF file as bytes
             max_pages: Optional limit on number of pages to extract
+            sampling_strategy: Strategy for selecting pages - "linear" or "random"
             
         Returns:
             Tuple of (pages list, combined raw text)
@@ -271,14 +330,16 @@ class DocumentService:
         pages = []
         try:
             images = convert_from_bytes(file)
+            total_pages = len(images)
             
-            # Limit pages if max_pages is specified
-            images_to_process = images if max_pages is None else images[:max_pages]
+            # Determine which pages to extract based on strategy
+            page_indices = self._get_page_indices_to_extract(total_pages, max_pages, sampling_strategy)
             
-            for i, image in enumerate(images_to_process):
+            for page_idx in page_indices:
+                image = images[page_idx]
                 text = pytesseract.image_to_string(image)
                 pages.append({
-                    "page_number": i + 1,
+                    "page_number": page_idx + 1,
                     "text": text
                 })
             

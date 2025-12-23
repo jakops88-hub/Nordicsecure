@@ -326,7 +326,8 @@ Extract the author and title in JSON format only."""
     def rename_single_file(
         self,
         file_path: Path,
-        max_pages: int = 3
+        max_pages: int = 3,
+        sampling_strategy: str = "linear"
     ) -> Dict[str, Any]:
         """
         Rename a single PDF file based on its content.
@@ -334,6 +335,7 @@ Extract the author and title in JSON format only."""
         Args:
             file_path: Path to PDF file
             max_pages: Number of pages to extract for analysis (default: 3)
+            sampling_strategy: Strategy for selecting pages - "linear" or "random"
             
         Returns:
             Dictionary with:
@@ -356,7 +358,8 @@ Extract the author and title in JSON format only."""
             parsed_data = self.document_service.parse_pdf(
                 file_content,
                 filename=original_name,
-                max_pages=max_pages
+                max_pages=max_pages,
+                sampling_strategy=sampling_strategy
             )
             
             # Get text from parsed pages
@@ -425,6 +428,7 @@ Extract the author and title in JSON format only."""
         self,
         folder_path: str,
         max_pages: int = 3,
+        sampling_strategy: str = "linear",
         progress_callback=None
     ) -> Dict[str, Any]:
         """
@@ -433,6 +437,7 @@ Extract the author and title in JSON format only."""
         Args:
             folder_path: Path to folder containing PDFs
             max_pages: Number of pages to analyze per file
+            sampling_strategy: Strategy for selecting pages - "linear" or "random"
             progress_callback: Optional callback function(current, total, result)
             
         Returns:
@@ -467,7 +472,7 @@ Extract the author and title in JSON format only."""
         
         # Process each file
         for i, file_path in enumerate(pdf_files, 1):
-            result = self.rename_single_file(file_path, max_pages)
+            result = self.rename_single_file(file_path, max_pages, sampling_strategy)
             
             # Update stats
             stats["processed"] += 1

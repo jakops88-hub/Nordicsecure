@@ -253,7 +253,8 @@ Does this document match the criteria? Respond in JSON format only."""
         criteria: str,
         target_relevant: Path,
         target_irrelevant: Path,
-        max_pages: int = 5
+        max_pages: int = 5,
+        sampling_strategy: str = "linear"
     ) -> Dict[str, Any]:
         """
         Process a single file: extract text, classify, and move.
@@ -264,6 +265,7 @@ Does this document match the criteria? Respond in JSON format only."""
             target_relevant: Directory for relevant files
             target_irrelevant: Directory for irrelevant files
             max_pages: Maximum pages to extract (lazy loading)
+            sampling_strategy: Strategy for selecting pages - "linear" or "random"
             
         Returns:
             Dictionary with processing result:
@@ -291,7 +293,8 @@ Does this document match the criteria? Respond in JSON format only."""
                 parsed_data = self.document_service.parse_pdf(
                     file_content,
                     filename=filename,
-                    max_pages=max_pages
+                    max_pages=max_pages,
+                    sampling_strategy=sampling_strategy
                 )
             except ValueError as pdf_error:
                 # Re-raise with more context (encrypted PDF, empty file, etc.)
@@ -359,6 +362,7 @@ Does this document match the criteria? Respond in JSON format only."""
         target_irrelevant: str,
         criteria: str,
         max_pages: int = 5,
+        sampling_strategy: str = "linear",
         progress_callback=None
     ) -> Dict[str, Any]:
         """
@@ -370,6 +374,7 @@ Does this document match the criteria? Respond in JSON format only."""
             target_irrelevant: Path to irrelevant folder
             criteria: Classification criteria
             max_pages: Maximum pages to analyze per document
+            sampling_strategy: Strategy for selecting pages - "linear" or "random"
             progress_callback: Optional callback function(current, total, result)
             
         Returns:
@@ -424,7 +429,8 @@ Does this document match the criteria? Respond in JSON format only."""
                 criteria,
                 target_relevant_path,
                 target_irrelevant_path,
-                max_pages
+                max_pages,
+                sampling_strategy
             )
             
             # Update stats
