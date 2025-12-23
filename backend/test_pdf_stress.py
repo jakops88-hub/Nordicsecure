@@ -1,16 +1,21 @@
 """
-Stress Test for PDF Processing - Memory Leak and Performance Analysis
-======================================================================
+Stress Test for PDF Processing with LLM Classification - Memory and Performance Analysis
+=========================================================================================
 
-This script performs a stress test on the DocumentService.parse_pdf() function
-to detect memory leaks and measure performance under repeated execution.
+This script performs a stress test with REAL Llama 3 model inference to measure
+RAM usage and performance under actual production workload.
 
 Features:
-- Generates 50 dummy PDF objects for testing
-- Executes PDF processing in a loop with multiple iterations
-- Monitors RAM usage using psutil to detect memory leaks
-- Tracks execution time for every 5th file
-- Reports average time per file and memory stability
+- Generates 20 dummy PDF objects for testing
+- Loads Llama 3 model and performs REAL classification inference
+- Extracts text from PDFs AND categorizes them using the LLM
+- Monitors RAM usage using psutil to detect memory consumption
+- Tracks execution time for each file
+- Reports average time per file and memory usage with model loaded
+
+Prerequisites:
+- Ollama must be running: ollama serve
+- Llama 3 model must be pulled: ollama pull llama3
 
 Run with: python backend/test_pdf_stress.py
 """
@@ -38,28 +43,55 @@ except ImportError:
     canvas = None
     letter = None
 
+try:
+    import requests
+except ImportError:
+    requests = None
+
 from backend.app.services.document_service import DocumentService
+from backend.app.services.triage_service import TriageService
 
 
 class PDFStressTest:
-    """Stress test runner for PDF processing performance and memory analysis."""
+    """Stress test runner for PDF processing with LLM classification."""
     
     # Memory leak detection thresholds
     MEMORY_LEAK_THRESHOLD_MB = 5.0  # MB - significant memory growth threshold
     SLOPE_THRESHOLD_MB = 0.5  # MB per sample - linear growth threshold
     
-    def __init__(self, num_pdfs: int = 50, iterations: int = 3):
+    # Test configuration for real model inference
+    DEFAULT_NUM_PDFS = 20  # Reduced for realistic testing with LLM
+    DEFAULT_OLLAMA_URL = "http://localhost:11435"  # Uses port 11435 to avoid conflicts with standard Ollama (11434)
+    DEFAULT_MODEL_NAME = "llama3"
+    
+    # Timing validation thresholds (in seconds)
+    EXPECTED_MIN_INFERENCE_TIME = 1.0  # Minimum expected time - below this indicates model not running
+    EXPECTED_REALISTIC_INFERENCE_TIME = 5.0  # Realistic time for LLM inference
+    EXPECTED_MAX_INFERENCE_TIME = 10.0  # Maximum expected time for normal inference
+    
+    def __init__(
+        self,
+        num_pdfs: int = DEFAULT_NUM_PDFS,
+        iterations: int = 1,
+        ollama_url: str = DEFAULT_OLLAMA_URL,
+        model_name: str = DEFAULT_MODEL_NAME
+    ):
         """
-        Initialize stress test.
+        Initialize stress test with real LLM inference.
         
         Args:
             num_pdfs: Number of dummy PDF files to generate
             iterations: Number of times to process all PDFs
+            ollama_url: URL for Ollama API
+            model_name: Name of the LLM model to use
         """
         self.num_pdfs = num_pdfs
         self.iterations = iterations
+        self.ollama_url = ollama_url
+        self.model_name = model_name
         self.process = psutil.Process()
         self.document_service = None
+        self.triage_service = None
         self.dummy_pdfs: List[Dict[str, Any]] = []
         
     def generate_dummy_pdf(self, pdf_id: int, num_pages: int = 3) -> bytes:
@@ -198,9 +230,9 @@ class PDFStressTest:
         return b"".join(pdf_content)
     
     def initialize_test(self):
-        """Initialize document service and generate dummy PDFs."""
+        """Initialize document service, triage service with LLM, and generate dummy PDFs."""
         print("=" * 70)
-        print("PDF PROCESSING STRESS TEST - MEMORY LEAK & PERFORMANCE ANALYSIS")
+        print("PDF PROCESSING STRESS TEST WITH REAL LLAMA 3 INFERENCE")
         print("=" * 70)
         print()
         
@@ -208,12 +240,49 @@ class PDFStressTest:
         print(f"  - Number of PDFs: {self.num_pdfs}")
         print(f"  - Iterations: {self.iterations}")
         print(f"  - Total files to process: {self.num_pdfs * self.iterations}")
+        print(f"  - Ollama URL: {self.ollama_url}")
+        print(f"  - Model: {self.model_name}")
         print()
         
         # Initialize document service (without embedding model for faster testing)
         print("Initializing DocumentService...")
         self.document_service = DocumentService(collection=None)
         print("✓ DocumentService initialized")
+        print()
+        
+        # Initialize TriageService with real Llama 3 model
+        print(f"Initializing TriageService with {self.model_name}...")
+        print("⚠️  This will connect to Ollama and load the model into memory")
+        self.triage_service = TriageService(
+            document_service=self.document_service,
+            ollama_base_url=self.ollama_url,
+            model_name=self.model_name
+        )
+        print("✓ TriageService initialized")
+        print()
+        
+        # Verify Ollama is running by making a test call
+        print("Verifying Ollama connection...")
+        try:
+            if requests is None:
+                raise ImportError("requests library is required for Ollama connection")
+            response = requests.get(f"{self.ollama_url}/api/tags", timeout=5)
+            if response.status_code == 200:
+                print("✓ Ollama is running and accessible")
+                models = response.json().get("models", [])
+                model_names = [m.get("name", "") for m in models]
+                if any(self.model_name in name for name in model_names):
+                    print(f"✓ Model '{self.model_name}' is available")
+                else:
+                    print(f"⚠️  Model '{self.model_name}' not found in available models")
+                    print(f"   Available models: {', '.join(model_names) if model_names else 'None'}")
+                    print(f"   The model will be pulled on first use (this may take time)")
+            else:
+                print(f"⚠️  Ollama returned status code: {response.status_code}")
+        except Exception as e:
+            print(f"⚠️  Could not verify Ollama connection: {e}")
+            print("   Make sure Ollama is running: ollama serve")
+            raise RuntimeError(f"Ollama is not accessible at {self.ollama_url}. Please start it first.") from e
         print()
         
         # Generate dummy PDFs
@@ -236,10 +305,12 @@ class PDFStressTest:
         return self.process.memory_info().rss / (1024 * 1024)
     
     def run_stress_test(self):
-        """Execute the stress test and monitor performance."""
+        """Execute the stress test with REAL LLM inference and monitor performance."""
         print("=" * 70)
-        print("STARTING STRESS TEST")
+        print("STARTING STRESS TEST WITH REAL LLAMA 3 INFERENCE")
         print("=" * 70)
+        print()
+        print("⚠️  Note: Each file will take 5-10 seconds due to real model inference")
         print()
         
         # Record initial memory
@@ -251,9 +322,16 @@ class PDFStressTest:
         # Track memory samples
         memory_samples = [initial_memory]
         execution_times = []
+        failed_files = 0
         
         total_files = self.num_pdfs * self.iterations
         files_processed = 0
+        
+        # Classification criteria for testing
+        classification_criteria = (
+            "Classify if this document is an invoice or receipt. "
+            "Look for invoice numbers, amounts, dates, and vendor information."
+        )
         
         # Main stress test loop
         for iteration in range(self.iterations):
@@ -267,30 +345,46 @@ class PDFStressTest:
                 start_time = time.time()
                 
                 try:
-                    # Execute PDF parsing
-                    result = self.document_service.parse_pdf(
+                    # Step 1: Extract text from PDF
+                    parsed_data = self.document_service.parse_pdf(
                         file=pdf["data"],
                         filename=pdf["filename"]
+                    )
+                    
+                    # Step 2: Get text for classification
+                    pages = parsed_data.get("pages", [])
+                    text = "\n".join(page.get("text", "") for page in pages)
+                    
+                    # Step 3: REAL LLM classification - this is the key change!
+                    # This actually loads the model and performs inference
+                    classification_result = self.triage_service.classify_document(
+                        text=text,
+                        criteria=classification_criteria
                     )
                     
                     execution_time = time.time() - start_time
                     execution_times.append(execution_time)
                     
-                    # Print timing for every 5th file
-                    if files_processed % 5 == 0:
-                        current_memory = self.get_memory_usage_mb()
-                        memory_samples.append(current_memory)
-                        memory_delta = current_memory - initial_memory
-                        
-                        print(
-                            f"  File {files_processed}/{total_files}: "
-                            f"{execution_time:.3f}s | "
-                            f"Memory: {current_memory:.2f} MB "
-                            f"(Δ {memory_delta:+.2f} MB)"
-                        )
+                    # Print timing for each file to show real progress
+                    current_memory = self.get_memory_usage_mb()
+                    memory_samples.append(current_memory)
+                    memory_delta = current_memory - initial_memory
+                    
+                    is_relevant = classification_result.get("is_relevant", False)
+                    reason = classification_result.get("reason", "No reason")
+                    
+                    print(
+                        f"  File {files_processed}/{total_files}: "
+                        f"{execution_time:.3f}s | "
+                        f"Memory: {current_memory:.2f} MB "
+                        f"(Δ {memory_delta:+.2f} MB) | "
+                        f"Classified: {'Yes' if is_relevant else 'No'}"
+                    )
                     
                 except Exception as e:
+                    failed_files += 1
                     print(f"  ERROR processing {pdf['filename']}: {e}")
+                    # Don't add failed operations to timing analysis
                     continue
             
             # Force garbage collection after each iteration
@@ -312,7 +406,8 @@ class PDFStressTest:
             final_memory=final_memory,
             memory_samples=memory_samples,
             execution_times=execution_times,
-            files_processed=files_processed
+            files_processed=files_processed,
+            failed_files=failed_files
         )
     
     def print_results(
@@ -321,7 +416,8 @@ class PDFStressTest:
         final_memory: float,
         memory_samples: List[float],
         execution_times: List[float],
-        files_processed: int
+        files_processed: int,
+        failed_files: int = 0
     ):
         """Print stress test results and analysis."""
         print()
@@ -331,16 +427,26 @@ class PDFStressTest:
         print()
         
         # Performance metrics
+        successful_files = files_processed - failed_files
         avg_time = sum(execution_times) / len(execution_times) if execution_times else 0
         min_time = min(execution_times) if execution_times else 0
         max_time = max(execution_times) if execution_times else 0
         
         print(f"Performance Metrics:")
         print(f"  - Files processed: {files_processed}")
+        print(f"  - Successful: {successful_files}")
+        if failed_files > 0:
+            print(f"  - Failed: {failed_files}")
         print(f"  - Average time per file: {avg_time:.3f} seconds")
         print(f"  - Min time: {min_time:.3f} seconds")
         print(f"  - Max time: {max_time:.3f} seconds")
         print(f"  - Total processing time: {sum(execution_times):.2f} seconds")
+        print()
+        print(f"  ⚠️  Expected: {self.EXPECTED_REALISTIC_INFERENCE_TIME}-{self.EXPECTED_MAX_INFERENCE_TIME} seconds per file with real LLM inference")
+        if avg_time < self.EXPECTED_MIN_INFERENCE_TIME:
+            print(f"  ⚠️  WARNING: Average time is too low! Model inference may not be running.")
+        elif avg_time >= self.EXPECTED_REALISTIC_INFERENCE_TIME:
+            print(f"  ✓ Realistic timing confirmed - LLM is performing real inference")
         print()
         
         # Memory analysis
@@ -409,8 +515,8 @@ class PDFStressTest:
 def main():
     """Main entry point for stress test."""
     try:
-        # Create stress test instance
-        stress_test = PDFStressTest(num_pdfs=50, iterations=3)
+        # Create stress test instance with 20 files and 1 iteration for real LLM testing
+        stress_test = PDFStressTest(num_pdfs=20, iterations=1)
         
         # Initialize test environment
         stress_test.initialize_test()
