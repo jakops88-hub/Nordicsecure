@@ -61,12 +61,13 @@ class PDFStressTest:
     
     # Test configuration for real model inference
     DEFAULT_NUM_PDFS = 20  # Reduced for realistic testing with LLM
-    DEFAULT_OLLAMA_URL = "http://localhost:11435"  # Port 11435 avoids conflicts with system Ollama on 11434
+    DEFAULT_OLLAMA_URL = "http://localhost:11435"  # Uses port 11435 to avoid conflicts with standard Ollama (11434)
     DEFAULT_MODEL_NAME = "llama3"
     
     # Timing validation thresholds (in seconds)
     EXPECTED_MIN_INFERENCE_TIME = 1.0  # Minimum expected time - below this indicates model not running
     EXPECTED_REALISTIC_INFERENCE_TIME = 5.0  # Realistic time for LLM inference
+    EXPECTED_MAX_INFERENCE_TIME = 10.0  # Maximum expected time for normal inference
     
     def __init__(
         self,
@@ -441,7 +442,7 @@ class PDFStressTest:
         print(f"  - Max time: {max_time:.3f} seconds")
         print(f"  - Total processing time: {sum(execution_times):.2f} seconds")
         print()
-        print(f"  ⚠️  Expected: {self.EXPECTED_REALISTIC_INFERENCE_TIME}-10 seconds per file with real LLM inference")
+        print(f"  ⚠️  Expected: {self.EXPECTED_REALISTIC_INFERENCE_TIME}-{self.EXPECTED_MAX_INFERENCE_TIME} seconds per file with real LLM inference")
         if avg_time < self.EXPECTED_MIN_INFERENCE_TIME:
             print(f"  ⚠️  WARNING: Average time is too low! Model inference may not be running.")
         elif avg_time >= self.EXPECTED_REALISTIC_INFERENCE_TIME:
