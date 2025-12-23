@@ -25,6 +25,8 @@ from datetime import datetime
 from typing import List, Dict, Any
 
 # Add backend to path for imports
+# Note: This is acceptable for a standalone test script.
+# For production code, consider using proper package structure with __init__.py
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 try:
@@ -41,6 +43,10 @@ from backend.app.services.document_service import DocumentService
 
 class PDFStressTest:
     """Stress test runner for PDF processing performance and memory analysis."""
+    
+    # Memory leak detection thresholds
+    MEMORY_LEAK_THRESHOLD_MB = 5.0  # MB - significant memory growth threshold
+    SLOPE_THRESHOLD_MB = 0.5  # MB per sample - linear growth threshold
     
     def __init__(self, num_pdfs: int = 50, iterations: int = 3):
         """
@@ -75,6 +81,9 @@ class PDFStressTest:
         buffer = io.BytesIO()
         c = canvas.Canvas(buffer, pagesize=letter)
         
+        # Use current date for realistic test data
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        
         for page_num in range(num_pages):
             # Add some text content to each page
             c.drawString(100, 750, f"Test Document #{pdf_id}")
@@ -83,7 +92,7 @@ class PDFStressTest:
             
             # Add some sample invoice-like content
             c.drawString(100, 650, "Sample Invoice Data:")
-            c.drawString(100, 630, "Date: 2024-01-15")
+            c.drawString(100, 630, f"Date: {current_date}")
             c.drawString(100, 610, "Amount: $1,234.56")
             c.drawString(100, 590, "Vendor: Test Corporation Inc.")
             
@@ -165,6 +174,9 @@ class PDFStressTest:
             )
         
         # xref table
+        # Note: Using simplified xref with placeholder offsets for testing purposes.
+        # This creates a minimal but valid PDF structure that works with PyPDF2.
+        # For production use, proper xref offsets should be calculated.
         xref_offset = sum(len(chunk) for chunk in pdf_content)
         pdf_content.append(b"xref\n")
         pdf_content.append(f"0 {3 + 2 * num_pages}\n".encode())
@@ -363,16 +375,14 @@ class PDFStressTest:
             print()
             
             # Detect memory leak
-            # If memory grows more than 5 MB and shows consistent upward trend
-            MEMORY_LEAK_THRESHOLD = 5.0  # MB
-            SLOPE_THRESHOLD = 0.5  # MB per sample
+            # If memory grows more than threshold and shows consistent upward trend
             
-            if memory_delta > MEMORY_LEAK_THRESHOLD and slope > SLOPE_THRESHOLD:
+            if memory_delta > self.MEMORY_LEAK_THRESHOLD_MB and slope > self.SLOPE_THRESHOLD_MB:
                 print("⚠️  MEMORY LEAK DETECTED!")
                 print(f"   Memory grew by {memory_delta:.2f} MB and did not stabilize.")
                 print(f"   Slope indicates consistent growth: {slope:.4f} MB per sample.")
                 print()
-            elif memory_delta > MEMORY_LEAK_THRESHOLD:
+            elif memory_delta > self.MEMORY_LEAK_THRESHOLD_MB:
                 print("⚠️  WARNING: Significant memory growth detected")
                 print(f"   Memory grew by {memory_delta:.2f} MB, but growth rate is not linear.")
                 print(f"   This might be normal caching behavior.")
