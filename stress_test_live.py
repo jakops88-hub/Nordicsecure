@@ -545,7 +545,10 @@ def main():
     """Main entry point for live app stress test."""
     try:
         # Create stress test instance
-        stress_test = LiveAppStressTest(num_pdfs=50)
+        # Configurable via environment variables
+        num_pdfs = int(os.getenv('STRESS_TEST_NUM_PDFS', '50'))
+        backend_url = os.getenv('BACKEND_URL', 'http://localhost:8000')
+        stress_test = LiveAppStressTest(num_pdfs=num_pdfs, backend_url=backend_url)
         
         # Initialize test
         stress_test.initialize_test()

@@ -621,8 +621,10 @@ def main():
     """Main entry point for stress test."""
     try:
         # Create stress test instance
-        # Configured for 50 PDFs as requested
-        stress_test = PDFStressTest(num_pdfs=50, iterations=1)
+        # Configured for 50 PDFs as requested (can be overridden via environment variable)
+        num_pdfs = int(os.getenv('STRESS_TEST_NUM_PDFS', '50'))
+        iterations = int(os.getenv('STRESS_TEST_ITERATIONS', '1'))
+        stress_test = PDFStressTest(num_pdfs=num_pdfs, iterations=iterations)
         
         # Initialize test environment
         stress_test.initialize_test()

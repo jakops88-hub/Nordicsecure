@@ -218,8 +218,18 @@ Initial memory usage: 523.45 MB
 
 ### Changing Number of PDFs
 
-Edit the script's `main()` function:
+**Option 1: Via Environment Variable (Recommended)**
+```bash
+# Backend test
+export STRESS_TEST_NUM_PDFS=100
+python backend/test_pdf_stress.py
 
+# Live app test
+export STRESS_TEST_NUM_PDFS=100
+python stress_test_live.py
+```
+
+**Option 2: Edit the script's `main()` function:**
 ```python
 # backend/test_pdf_stress.py
 stress_test = PDFStressTest(num_pdfs=100, iterations=1)
@@ -232,6 +242,14 @@ stress_test = LiveAppStressTest(num_pdfs=100)
 
 For memory leak detection over extended periods:
 
+**Option 1: Via Environment Variable**
+```bash
+export STRESS_TEST_NUM_PDFS=50
+export STRESS_TEST_ITERATIONS=3
+python backend/test_pdf_stress.py  # 150 total files
+```
+
+**Option 2: Edit the code:**
 ```python
 stress_test = PDFStressTest(num_pdfs=50, iterations=3)  # 150 total files
 ```
@@ -240,12 +258,29 @@ stress_test = PDFStressTest(num_pdfs=50, iterations=3)  # 150 total files
 
 For remote testing:
 
+**Option 1: Via Environment Variable (Recommended)**
+```bash
+export BACKEND_URL="http://192.168.1.100:8000"
+python stress_test_live.py
+```
+
+**Option 2: Edit the code:**
 ```python
 stress_test = LiveAppStressTest(
     num_pdfs=50,
     backend_url="http://192.168.1.100:8000"
 )
 ```
+
+### Environment Variables Reference
+
+The stress tests support the following environment variables:
+
+| Variable | Description | Default | Used By |
+|----------|-------------|---------|---------|
+| `STRESS_TEST_NUM_PDFS` | Number of PDFs to test | `50` | Backend & Live tests |
+| `STRESS_TEST_ITERATIONS` | Number of iterations | `1` | Backend test only |
+| `BACKEND_URL` | Backend API URL | `http://localhost:8000` | Live test only |
 
 ## Interpreting Results
 
