@@ -68,9 +68,13 @@ Before running the test, verify that Ollama is running:
 curl http://localhost:11435/api/tags
 
 # Should return a list of models including llama3
+# If the command fails or times out:
+#   - Make sure Ollama is running: export OLLAMA_HOST=127.0.0.1:11435 && ollama serve
+#   - Check if using a different port (standard is 11434)
+#   - Verify firewall settings if on a remote server
 ```
 
-**Note**: This application uses port 11435 to avoid conflicts with system-wide Ollama installations. If you're using the standard Ollama port (11434), update the test parameters accordingly.
+**Note**: This application uses port 11435 to avoid conflicts with system-wide Ollama installations on port 11434. If you're using the standard Ollama port (11434), update the test parameters accordingly.
 
 ### Basic Usage
 
