@@ -55,6 +55,10 @@ class DocumentService:
     - Storage in PostgreSQL with pgvector extension
     """
     
+    # Sampling strategy constants
+    SAMPLING_LINEAR = "linear"
+    SAMPLING_RANDOM = "random"
+    
     # Detection patterns (from pdf-api extractionService.ts)
     DATE_PATTERN = re.compile(
         r'\b(\d{4}[/.\-]\d{1,2}[/.\-]\d{1,2}|\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4})\b'
@@ -265,7 +269,7 @@ class DocumentService:
         # Limit to available pages
         max_pages = min(max_pages, total_pages)
         
-        if sampling_strategy.lower() == "random":
+        if sampling_strategy.lower() == self.SAMPLING_RANDOM:
             # Random strategy: Pick pages from start, middle, end
             # Respects max_pages limit
             if total_pages == 1:
@@ -282,7 +286,9 @@ class DocumentService:
                 
                 # Only add middle and end if max_pages allows
                 if max_pages >= 2:
-                    # Middle page - improved calculation for better representation
+                    # Middle page - use (total_pages - 1) // 2 for better representation
+                    # This places the middle page slightly earlier in the document
+                    # (e.g., for 10 pages: page 5 instead of page 6)
                     indices.append((total_pages - 1) // 2)
                 
                 if max_pages >= 3:

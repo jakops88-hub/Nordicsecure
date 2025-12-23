@@ -1,6 +1,6 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from contextlib import asynccontextmanager
 import os
 import logging
@@ -283,6 +283,12 @@ class TriageRequest(BaseModel):
     criteria: str
     max_pages: Optional[int] = 5
     sampling_strategy: Optional[str] = "linear"
+    
+    @field_validator('sampling_strategy')
+    def validate_sampling_strategy(cls, v):
+        if v.lower() not in ['linear', 'random']:
+            raise ValueError(f"sampling_strategy must be 'linear' or 'random', got '{v}'")
+        return v.lower()
 
 
 class TriageResponse(BaseModel):
@@ -350,6 +356,12 @@ class RenameRequest(BaseModel):
     file_path: str
     max_pages: Optional[int] = 3
     sampling_strategy: Optional[str] = "linear"
+    
+    @field_validator('sampling_strategy')
+    def validate_sampling_strategy(cls, v):
+        if v.lower() not in ['linear', 'random']:
+            raise ValueError(f"sampling_strategy must be 'linear' or 'random', got '{v}'")
+        return v.lower()
 
 
 class RenameResponse(BaseModel):
@@ -417,6 +429,12 @@ class BatchRenameRequest(BaseModel):
     folder_path: str
     max_pages: Optional[int] = 3
     sampling_strategy: Optional[str] = "linear"
+    
+    @field_validator('sampling_strategy')
+    def validate_sampling_strategy(cls, v):
+        if v.lower() not in ['linear', 'random']:
+            raise ValueError(f"sampling_strategy must be 'linear' or 'random', got '{v}'")
+        return v.lower()
 
 
 class BatchRenameResponse(BaseModel):
