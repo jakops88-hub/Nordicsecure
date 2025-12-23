@@ -45,5 +45,6 @@ pyarrow>=10.0.0
 # Progress bars
 tqdm>=4.65.0
 
-# Performance monitoring
+# Performance monitoring and testing
 psutil>=5.9.0
+reportlab>=4.0.0
