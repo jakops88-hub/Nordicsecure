@@ -250,16 +250,23 @@ Extract the author and title in JSON format only."""
         
         # Construct filename
         if author_clean and title_clean:
-            new_name = f"{author_clean} - {title_clean}.pdf"
+            new_name = f"{author_clean} - {title_clean}"
         elif title_clean:
             # Fallback: just title if no author
-            new_name = f"{title_clean}.pdf"
+            new_name = title_clean
         elif author_clean:
             # Fallback: just author if no title
-            new_name = f"{author_clean}.pdf"
+            new_name = author_clean
         else:
             # Ultimate fallback
-            new_name = "Untitled.pdf"
+            new_name = "Untitled"
+        
+        # Truncate if too long (reserve space for .pdf extension)
+        if len(new_name) > self.MAX_FILENAME_LENGTH:
+            new_name = new_name[:self.MAX_FILENAME_LENGTH].strip()
+        
+        # Add extension
+        new_name = f"{new_name}.pdf"
         
         return new_name
     
