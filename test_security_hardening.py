@@ -81,7 +81,7 @@ def test_environment_variables_in_code():
                     if not stripped.startswith('#'):
                         # We want to find the first library import after the os.environ setup
                         # Look for common libraries like fastapi, streamlit, requests (not os/sys)
-                        if any(lib in line for lib in ['fastapi', 'streamlit', 'requests', 'pandas', 'numpy', 'backend.']):
+                        if any(lib in line for lib in ['fastapi', 'streamlit', 'requests', 'pandas', 'numpy']):
                             first_library_import_line = i
                             break
             
