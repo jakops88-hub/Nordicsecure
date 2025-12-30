@@ -174,8 +174,8 @@ def log_query_to_audit(user: str, query: str, result_count: int):
             if not file_exists:
                 writer.writerow(['Timestamp', 'User', 'Query', 'Result_Count'])
             
-            # Write audit entry
-            timestamp = datetime.now().isoformat()
+            # Write audit entry with explicit UTC timezone for ISO 8601 compliance
+            timestamp = datetime.now(timezone.utc).isoformat()
             writer.writerow([timestamp, user, query, result_count])
     except Exception as e:
         # Silently fail if audit logging fails - don't disrupt user experience
