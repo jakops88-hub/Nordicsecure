@@ -64,16 +64,20 @@ def log_query_to_audit(user: str, query: str, result_count: int):
     """
     try:
         log_path = Path(AUDIT_LOG_FILE)
-        file_exists = log_path.exists()
+
+        # Attempt to create the file and write the header exactly once.
+        # Using mode 'x' makes creation atomic: only one process will succeed.
+        try:
+            with open(log_path, 'x', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(['Timestamp', 'User', 'Query', 'Result_Count'])
+        except FileExistsError:
+            # File already exists; header should already be present.
+            pass
         
+        # Append the audit entry
         with open(log_path, 'a', newline='', encoding='utf-8') as csvfile:
             writer = csv.writer(csvfile)
-            
-            # Write header if file is new
-            if not file_exists:
-                writer.writerow(['Timestamp', 'User', 'Query', 'Result_Count'])
-            
-            # Write audit entry
             timestamp = datetime.now().isoformat()
             writer.writerow([timestamp, user, query, result_count])
             
