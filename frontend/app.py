@@ -1,6 +1,28 @@
+# ==============================================================================
+# IRON DOME: SECURITY & OFFLINE ENFORCEMENT
+# Must be at the very top before ANY library imports to disable telemetry
+# ==============================================================================
+import os
+
+# Disable LangChain telemetry and tracing
+os.environ["LANGCHAIN_TRACING_V2"] = "false"
+os.environ["LANGCHAIN_API_KEY"] = ""
+
+# Disable SCARF analytics (used by some ML libraries)
+os.environ["SCARF_NO_ANALYTICS"] = "true"
+
+# Disable HuggingFace telemetry
+os.environ["HF_HUB_OFFLINE"] = "1"
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
+
+# Disable Streamlit telemetry (redundant with config.toml but ensures it)
+os.environ["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
+
+# ==============================================================================
+# Standard imports after telemetry blocking
+# ==============================================================================
 import streamlit as st
 import requests
-import os
 import pandas as pd
 import traceback
 from datetime import datetime, timezone
@@ -123,6 +145,25 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
+
+# ==============================================================================
+# STARTUP NETWORK CHECK
+# ==============================================================================
+def check_network_connection():
+    """
+    Check if network connection is available.
+    
+    Returns:
+        bool: True if network is accessible, False otherwise
+    """
+    try:
+        # Try to reach a common DNS server with a short timeout
+        response = requests.get("http://www.google.com", timeout=2)
+        return response.status_code == 200
+    except:
+        return False
+
 
 def check_license():
     """
@@ -269,6 +310,12 @@ def main():
     Wrapped in try/except for friendly error handling.
     """
     try:
+        # Check for network connection on startup and display warning
+        if 'network_checked' not in st.session_state:
+            st.session_state.network_checked = True
+            if check_network_connection():
+                st.warning("⚠️ **Network connection detected.** For maximum security, disconnect from the internet before processing confidential documents.")
+        
         # Initialize session state variables
         if 'language' not in st.session_state:
             st.session_state.language = 'sv'  # Default to Swedish
