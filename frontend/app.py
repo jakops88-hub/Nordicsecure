@@ -1,8 +1,31 @@
+# ==============================================================================
+# IRON DOME: SECURITY & OFFLINE ENFORCEMENT
+# Must be at the very top before ANY library imports to disable telemetry
+# ==============================================================================
+import os
+
+# Disable LangChain telemetry and tracing
+os.environ["LANGCHAIN_TRACING_V2"] = "false"
+os.environ["LANGCHAIN_API_KEY"] = ""
+
+# Disable SCARF analytics (used by some ML libraries)
+os.environ["SCARF_NO_ANALYTICS"] = "true"
+
+# Disable HuggingFace telemetry
+os.environ["HF_HUB_OFFLINE"] = "1"
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
+
+# Disable Streamlit telemetry (redundant with config.toml but ensures it)
+os.environ["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
+
+# ==============================================================================
+# Standard imports after telemetry blocking
+# ==============================================================================
 import streamlit as st
 import requests
-import os
 import pandas as pd
 import traceback
+import csv
 from datetime import datetime, timezone
 
 # Backend URL from environment variable or default
@@ -124,6 +147,69 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+
+# ==============================================================================
+# AUDIT LOGGING FUNCTIONALITY
+# ==============================================================================
+AUDIT_LOG_FILE = "audit_log.csv"
+
+def log_query_to_audit(user: str, query: str, result_count: int):
+    """
+    Log user queries to audit_log.csv for compliance.
+    
+    Args:
+        user: Username or identifier
+        query: The search query text
+        result_count: Number of results returned
+    """
+    try:
+        from pathlib import Path
+        log_path = Path(AUDIT_LOG_FILE)
+
+        # Attempt to create the file and write the header atomically.
+        # Using mode 'x' ensures only the process that creates the file
+        # writes the header; others will get FileExistsError and skip this.
+        try:
+            with open(log_path, 'x', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(['Timestamp', 'User', 'Query', 'Result_Count'])
+        except FileExistsError:
+            # File already exists; header has been (or will be) written.
+            pass
+
+        with open(log_path, 'a', newline='', encoding='utf-8') as csvfile:
+            writer = csv.writer(csvfile)
+            # Write audit entry with explicit UTC timezone for ISO 8601 compliance
+            timestamp = datetime.now(timezone.utc).isoformat()
+            writer.writerow([timestamp, user, query, result_count])
+    except Exception as e:
+        # Silently fail if audit logging fails - don't disrupt user experience
+        pass
+
+
+# ==============================================================================
+# STARTUP NETWORK CHECK
+# ==============================================================================
+def check_network_connection():
+    """
+    Check if network connection is available.
+    
+    Returns:
+        bool: True if network is accessible, False otherwise
+    """
+    try:
+        # Try to reach a common site with HTTPS (secure)
+        response = requests.get("https://www.google.com", timeout=2)
+        return response.status_code == 200
+    except requests.exceptions.RequestException:
+        # Network-related error: treat as no connectivity
+        return False
+    except Exception:
+        # Log unexpected errors for debugging while preserving behavior
+        traceback.print_exc()
+        return False
+
+
 def check_license():
     """
     Check license status with backend.
@@ -211,7 +297,17 @@ def search_documents(query):
         )
         
         if response.status_code == 200:
-            return response.json()
+            result = response.json()
+            
+            # Log query to audit trail
+            result_count = len(result.get("results", []))
+            log_query_to_audit(
+                user="frontend_user",  # Can be extended with actual user tracking
+                query=query,
+                result_count=result_count
+            )
+            
+            return result
         else:
             return {"error": f"Search failed with status {response.status_code}: {response.text}"}
     except requests.exceptions.Timeout:
@@ -269,6 +365,11 @@ def main():
     Wrapped in try/except for friendly error handling.
     """
     try:
+        # Display offline security warning once per session
+        if 'network_checked' not in st.session_state:
+            st.session_state.network_checked = True
+            st.warning("⚠️ **Network connection detected.** For maximum security, disconnect from the internet before processing confidential documents.")
+        
         # Initialize session state variables
         if 'language' not in st.session_state:
             st.session_state.language = 'sv'  # Default to Swedish

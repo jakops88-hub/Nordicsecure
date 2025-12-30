@@ -1,8 +1,30 @@
+# ==============================================================================
+# IRON DOME: SECURITY & OFFLINE ENFORCEMENT
+# Must be at the very top before ANY library imports to disable telemetry
+# ==============================================================================
+import os
+
+# Disable LangChain telemetry and tracing
+os.environ["LANGCHAIN_TRACING_V2"] = "false"
+os.environ["LANGCHAIN_API_KEY"] = ""
+
+# Disable SCARF analytics (used by some ML libraries)
+os.environ["SCARF_NO_ANALYTICS"] = "true"
+
+# Disable HuggingFace telemetry
+os.environ["HF_HUB_OFFLINE"] = "1"
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
+
+# Disable Streamlit telemetry (redundant with config.toml but ensures it)
+os.environ["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
+
+# ==============================================================================
+# Standard imports after telemetry blocking
+# ==============================================================================
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, field_validator
 from contextlib import asynccontextmanager
-import os
 import logging
 from typing import List, Dict, Any, Optional
 
@@ -20,6 +42,48 @@ logger = logging.getLogger(__name__)
 document_service = None
 triage_service = None
 rename_service = None
+
+
+# ==============================================================================
+# AUDIT LOGGING FUNCTIONALITY
+# ==============================================================================
+import csv
+from datetime import datetime
+from pathlib import Path
+
+AUDIT_LOG_FILE = "audit_log.csv"
+
+def log_query_to_audit(user: str, query: str, result_count: int):
+    """
+    Log user queries to audit_log.csv for compliance.
+    
+    Args:
+        user: Username or identifier (defaults to "system" if not provided)
+        query: The search query text
+        result_count: Number of results returned
+    """
+    try:
+        log_path = Path(AUDIT_LOG_FILE)
+
+        # Attempt to create the file and write the header exactly once.
+        # Using mode 'x' makes creation atomic: only one process will succeed.
+        try:
+            with open(log_path, 'x', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(['Timestamp', 'User', 'Query', 'Result_Count'])
+        except FileExistsError:
+            # File already exists; header should already be present.
+            pass
+        
+        # Append the audit entry
+        with open(log_path, 'a', newline='', encoding='utf-8') as csvfile:
+            writer = csv.writer(csvfile)
+            timestamp = datetime.now().isoformat()
+            writer.writerow([timestamp, user, query, result_count])
+            
+        logger.info(f"Audit log entry created for user '{user}' with query: {query[:50]}...")
+    except Exception as e:
+        logger.error(f"Failed to write audit log: {e}", exc_info=True)
 
 
 @asynccontextmanager
@@ -255,6 +319,13 @@ async def search_documents(request: SearchRequest):
         results = document_service.search_documents(
             query_text=request.query,
             limit=5
+        )
+        
+        # Log to audit trail
+        log_query_to_audit(
+            user="system",  # TODO: Can be extended to include actual user info
+            query=request.query,
+            result_count=len(results)
         )
         
         return SearchResponse(results=results)
