@@ -165,15 +165,20 @@ def log_query_to_audit(user: str, query: str, result_count: int):
     try:
         from pathlib import Path
         log_path = Path(AUDIT_LOG_FILE)
-        file_exists = log_path.exists()
-        
+
+        # Attempt to create the file and write the header atomically.
+        # Using mode 'x' ensures only the process that creates the file
+        # writes the header; others will get FileExistsError and skip this.
+        try:
+            with open(log_path, 'x', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(['Timestamp', 'User', 'Query', 'Result_Count'])
+        except FileExistsError:
+            # File already exists; header has been (or will be) written.
+            pass
+
         with open(log_path, 'a', newline='', encoding='utf-8') as csvfile:
             writer = csv.writer(csvfile)
-            
-            # Write header if file is new
-            if not file_exists:
-                writer.writerow(['Timestamp', 'User', 'Query', 'Result_Count'])
-            
             # Write audit entry with explicit UTC timezone for ISO 8601 compliance
             timestamp = datetime.now(timezone.utc).isoformat()
             writer.writerow([timestamp, user, query, result_count])
