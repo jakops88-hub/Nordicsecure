@@ -148,6 +148,42 @@ st.markdown("""
 
 
 # ==============================================================================
+# AUDIT LOGGING FUNCTIONALITY
+# ==============================================================================
+import csv
+
+AUDIT_LOG_FILE = "audit_log.csv"
+
+def log_query_to_audit(user: str, query: str, result_count: int):
+    """
+    Log user queries to audit_log.csv for compliance.
+    
+    Args:
+        user: Username or identifier
+        query: The search query text
+        result_count: Number of results returned
+    """
+    try:
+        from pathlib import Path
+        log_path = Path(AUDIT_LOG_FILE)
+        file_exists = log_path.exists()
+        
+        with open(log_path, 'a', newline='', encoding='utf-8') as csvfile:
+            writer = csv.writer(csvfile)
+            
+            # Write header if file is new
+            if not file_exists:
+                writer.writerow(['Timestamp', 'User', 'Query', 'Result_Count'])
+            
+            # Write audit entry
+            timestamp = datetime.now().isoformat()
+            writer.writerow([timestamp, user, query, result_count])
+    except Exception as e:
+        # Silently fail if audit logging fails - don't disrupt user experience
+        pass
+
+
+# ==============================================================================
 # STARTUP NETWORK CHECK
 # ==============================================================================
 def check_network_connection():
@@ -252,7 +288,17 @@ def search_documents(query):
         )
         
         if response.status_code == 200:
-            return response.json()
+            result = response.json()
+            
+            # Log query to audit trail
+            result_count = len(result.get("results", []))
+            log_query_to_audit(
+                user="frontend_user",  # Can be extended with actual user tracking
+                query=query,
+                result_count=result_count
+            )
+            
+            return result
         else:
             return {"error": f"Search failed with status {response.status_code}: {response.text}"}
     except requests.exceptions.Timeout:
