@@ -355,11 +355,10 @@ def main():
     Wrapped in try/except for friendly error handling.
     """
     try:
-        # Check for network connection on startup and display warning
+        # Display offline security warning once per session
         if 'network_checked' not in st.session_state:
             st.session_state.network_checked = True
-            if check_network_connection():
-                st.warning("⚠️ **Network connection detected.** For maximum security, disconnect from the internet before processing confidential documents.")
+            st.warning("⚠️ **Network connection detected.** For maximum security, disconnect from the internet before processing confidential documents.")
         
         # Initialize session state variables
         if 'language' not in st.session_state:
