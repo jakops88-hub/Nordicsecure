@@ -196,7 +196,12 @@ def check_network_connection():
         # Try to reach a common site with HTTPS (secure)
         response = requests.get("https://www.google.com", timeout=2)
         return response.status_code == 200
-    except:
+    except requests.exceptions.RequestException:
+        # Network-related error: treat as no connectivity
+        return False
+    except Exception:
+        # Log unexpected errors for debugging while preserving behavior
+        traceback.print_exc()
         return False
 
 
