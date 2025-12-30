@@ -126,10 +126,10 @@ def check_file_size(filepath: Path) -> bool:
             )
             return False
         return True
-    except Exception as e:
+    except OSError as e:
         logger.error(f"Error checking file size for {filepath}: {e}")
         log_failed_file(str(filepath), f"Error checking file size: {str(e)}")
-        return False
+        raise
 
 
 def ingest_single_pdf(
