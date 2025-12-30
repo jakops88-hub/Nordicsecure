@@ -44,6 +44,10 @@ venv_build/
 # Logs
 *.log
 
+# Security hardening log files
+audit_log.csv
+failed_files.log
+
 # Docker
 docker-compose.override.yml
 
