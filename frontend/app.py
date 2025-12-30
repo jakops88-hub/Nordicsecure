@@ -25,6 +25,7 @@ import streamlit as st
 import requests
 import pandas as pd
 import traceback
+import csv
 from datetime import datetime, timezone
 
 # Backend URL from environment variable or default
@@ -150,8 +151,6 @@ st.markdown("""
 # ==============================================================================
 # AUDIT LOGGING FUNCTIONALITY
 # ==============================================================================
-import csv
-
 AUDIT_LOG_FILE = "audit_log.csv"
 
 def log_query_to_audit(user: str, query: str, result_count: int):

@@ -58,7 +58,7 @@ Added startup network check that displays a warning if internet connectivity is 
 def check_network_connection():
     """Check if network connection is available."""
     try:
-        response = requests.get("http://www.google.com", timeout=2)
+        response = requests.get("https://www.google.com", timeout=2)
         return response.status_code == 200
     except:
         return False
