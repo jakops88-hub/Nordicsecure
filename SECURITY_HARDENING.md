@@ -189,7 +189,7 @@ Timestamp,User,Query,Result_Count
 ```
 
 **Compliance Features:**
-- ISO 8601 timestamps
+- ISO 8601-formatted local timestamps (without timezone information)
 - UTF-8 encoding for international queries
 - Append-only logging (preserves history)
 - CSV format for easy analysis/export
