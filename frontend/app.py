@@ -194,8 +194,8 @@ def check_network_connection():
         bool: True if network is accessible, False otherwise
     """
     try:
-        # Try to reach a common DNS server with a short timeout
-        response = requests.get("http://www.google.com", timeout=2)
+        # Try to reach a common site with HTTPS (secure)
+        response = requests.get("https://www.google.com", timeout=2)
         return response.status_code == 200
     except:
         return False

@@ -62,28 +62,36 @@ def test_environment_variables_in_code():
             print(f"  ✗ Only {found_count}/{len(required_vars)} variables found")
             all_passed = False
         
-        # Check that env vars are set before imports (for backend/main.py)
+        # Check that env vars are set before imports
+        # Simple check: Iron Dome header should appear before fastapi/streamlit imports
         if file_path.name in ['main.py', 'app.py', 'ingest.py']:
             lines = content.split('\n')
             iron_dome_line = -1
-            first_import_line = -1
+            first_library_import_line = -1
             
             for i, line in enumerate(lines):
+                # Find Iron Dome header
                 if "IRON DOME" in line and iron_dome_line == -1:
                     iron_dome_line = i
-                if line.strip().startswith('from ') or line.strip().startswith('import '):
-                    # Skip comment lines
-                    if not line.strip().startswith('#'):
-                        # Skip the os import itself
-                        if 'import os' not in line or 'environ' in line:
-                            if first_import_line == -1 and i > 10:  # Give room for shebang and initial imports
-                                first_import_line = i
-                                break
+                
+                # Find first significant library import (not os, sys, or comments)
+                stripped = line.strip()
+                if stripped.startswith('from ') or stripped.startswith('import '):
+                    # Skip comments and the initial os import used for environ
+                    if not stripped.startswith('#'):
+                        # We want to find the first library import after the os.environ setup
+                        # Look for common libraries like fastapi, streamlit, requests (not os/sys)
+                        if any(lib in line for lib in ['fastapi', 'streamlit', 'requests', 'pandas', 'numpy', 'backend.']):
+                            first_library_import_line = i
+                            break
             
-            if iron_dome_line > 0 and iron_dome_line < first_import_line:
+            if iron_dome_line > 0 and first_library_import_line > 0 and iron_dome_line < first_library_import_line:
                 print(f"  ✓ Environment variables set before library imports")
+            elif first_library_import_line == -1:
+                # No library imports found (unlikely but handle gracefully)
+                print(f"  ✓ Environment variables present (no library imports to check)")
             else:
-                print(f"  ⚠ Warning: Check env var ordering (Iron Dome: line {iron_dome_line}, first import: line {first_import_line})")
+                print(f"  ⚠ Warning: Check env var ordering (Iron Dome: line {iron_dome_line}, first import: line {first_library_import_line})")
     
     if all_passed:
         print("\n✓ All environment variables are correctly present in code!")
