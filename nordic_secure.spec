@@ -190,7 +190,6 @@ hiddenimports = [
     'opentelemetry.sdk',
     'opentelemetry.sdk.resources',
     'opentelemetry.exporter.otlp.proto.grpc',
-    'opentelemetry.exporter.otlp.proto.grpc.trace_exporter',
     'opentelemetry.exporter.otlp.proto.grpc.exporter',
     
     # Concurrent futures (required by OpenTelemetry)
@@ -198,7 +197,7 @@ hiddenimports = [
     'concurrent.futures.thread',
     'concurrent.futures.process',
     
-    # gRPC
+    # gRPC (compiled C extension requires explicit private module hints for PyInstaller)
     'grpc',
     'grpc._channel',
     'grpc._cython',
