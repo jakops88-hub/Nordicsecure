@@ -23,6 +23,12 @@ Usage:
 import os
 import sys
 from pathlib import Path
+
+# Disable ChromaDB telemetry before importing chromadb
+# This prevents OpenTelemetry from registering atexit handlers
+os.environ.setdefault("ANONYMIZED_TELEMETRY", "false")
+os.environ.setdefault("CHROMA_TELEMETRY", "false")
+
 import chromadb
 from chromadb.config import Settings
 from typing import Optional

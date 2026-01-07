@@ -62,6 +62,26 @@ metadata_packages = [
     'click',
     'tornado',
     'packaging',
+    # Add packages required by ChromaDB and OpenTelemetry
+    'chromadb',
+    'opentelemetry-api',
+    'opentelemetry-sdk',
+    'opentelemetry-exporter-otlp-proto-grpc',
+    'grpcio',
+    'pydantic',
+    'pydantic-core',
+    'protobuf',
+    'rich',
+    'watchdog',
+    'fastapi',
+    'uvicorn',
+    'starlette',
+    'anyio',
+    'httpcore',
+    'httpx',
+    'numpy',
+    'pandas',
+    'pyarrow',
 ]
 
 for package in metadata_packages:
@@ -159,6 +179,33 @@ hiddenimports = [
     'pydantic',
     'pydantic_core',
     
+    # OpenTelemetry (required by ChromaDB)
+    'opentelemetry',
+    'opentelemetry.sdk',
+    'opentelemetry.sdk.resources',
+    'opentelemetry.sdk._logs',
+    'opentelemetry.sdk._logs._internal',
+    'opentelemetry.exporter.otlp.proto.grpc',
+    'opentelemetry.exporter.otlp.proto.grpc.trace_exporter',
+    'opentelemetry.exporter.otlp.proto.grpc.exporter',
+    
+    # Concurrent futures
+    'concurrent',
+    'concurrent.futures',
+    'concurrent.futures.thread',
+    'concurrent.futures.process',
+    
+    # gRPC
+    'grpc',
+    'grpc._channel',
+    'grpc._cython',
+    'grpc._cython.cygrpc',
+    
+    # Additional imports
+    'importlib.metadata',
+    'importlib.resources',
+    'importlib.resources.abc',
+    
     # Threading support
     'threading',
 ]
@@ -198,7 +245,10 @@ a = Analysis(
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[os.path.abspath('hook-streamlit.py')],
+    runtime_hooks=[
+        os.path.abspath('hook-streamlit.py'),
+        os.path.abspath('hook-chromadb.py')
+    ],
     excludes=[
         # Exclude unnecessary packages to reduce size
         'matplotlib',

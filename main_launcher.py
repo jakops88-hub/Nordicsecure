@@ -7,6 +7,13 @@ Manages Ollama, Backend (FastAPI) and Frontend (Streamlit) services.
 
 import os
 import sys
+
+# CRITICAL: Disable telemetry BEFORE importing any other packages
+# This prevents ChromaDB/OpenTelemetry from registering atexit handlers
+os.environ["ANONYMIZED_TELEMETRY"] = "false"
+os.environ["CHROMA_TELEMETRY"] = "false"
+os.environ["OTEL_SDK_DISABLED"] = "true"
+
 import threading
 import time
 import logging
