@@ -49,18 +49,19 @@ except Exception:
 # This fixes "PackageNotFoundError: No package metadata was found for streamlit"
 # which occurs because PyInstaller doesn't automatically bundle .dist-info directories
 # that contain the metadata files needed by importlib.metadata.version() and similar functions
+# 
+# Core packages that definitely need metadata:
+# - streamlit: main UI framework (causes the error)
+# - altair: used by streamlit for charts
+# - click: used by streamlit CLI
+# - tornado: streamlit's web server
+# - packaging: used for version parsing
 metadata_packages = [
     'streamlit',
     'altair',
-    'pandas',
-    'numpy',
-    'pillow',
-    'requests',
-    'packaging',
     'click',
     'tornado',
-    'protobuf',
-    'pyarrow',
+    'packaging',
 ]
 
 for package in metadata_packages:
