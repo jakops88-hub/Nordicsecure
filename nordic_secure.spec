@@ -49,60 +49,25 @@ except Exception:
 # This fixes "PackageNotFoundError: No package metadata was found for streamlit"
 # which occurs because PyInstaller doesn't automatically bundle .dist-info directories
 # that contain the metadata files needed by importlib.metadata.version() and similar functions
-try:
-    datas += copy_metadata('streamlit')
-except Exception:
-    pass
+metadata_packages = [
+    'streamlit',
+    'altair',
+    'pandas',
+    'numpy',
+    'pillow',
+    'requests',
+    'packaging',
+    'click',
+    'tornado',
+    'protobuf',
+    'pyarrow',
+]
 
-try:
-    datas += copy_metadata('altair')
-except Exception:
-    pass
-
-try:
-    datas += copy_metadata('pandas')
-except Exception:
-    pass
-
-try:
-    datas += copy_metadata('numpy')
-except Exception:
-    pass
-
-try:
-    datas += copy_metadata('pillow')
-except Exception:
-    pass
-
-try:
-    datas += copy_metadata('requests')
-except Exception:
-    pass
-
-try:
-    datas += copy_metadata('packaging')
-except Exception:
-    pass
-
-try:
-    datas += copy_metadata('click')
-except Exception:
-    pass
-
-try:
-    datas += copy_metadata('tornado')
-except Exception:
-    pass
-
-try:
-    datas += copy_metadata('protobuf')
-except Exception:
-    pass
-
-try:
-    datas += copy_metadata('pyarrow')
-except Exception:
-    pass
+for package in metadata_packages:
+    try:
+        datas += copy_metadata(package)
+    except Exception:
+        pass
 
 # Include Altair data files (used by Streamlit for charts)
 try:
