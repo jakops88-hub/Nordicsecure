@@ -185,17 +185,15 @@ hiddenimports = [
     'pydantic_core',
     
     # OpenTelemetry (required by ChromaDB)
+    # Only include public API modules to avoid breaking changes in private APIs
     'opentelemetry',
     'opentelemetry.sdk',
     'opentelemetry.sdk.resources',
-    'opentelemetry.sdk._logs',
-    'opentelemetry.sdk._logs._internal',
     'opentelemetry.exporter.otlp.proto.grpc',
     'opentelemetry.exporter.otlp.proto.grpc.trace_exporter',
     'opentelemetry.exporter.otlp.proto.grpc.exporter',
     
-    # Concurrent futures
-    'concurrent',
+    # Concurrent futures (required by OpenTelemetry)
     'concurrent.futures',
     'concurrent.futures.thread',
     'concurrent.futures.process',

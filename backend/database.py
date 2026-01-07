@@ -89,7 +89,8 @@ def get_chroma_client() -> chromadb.PersistentClient:
         _chroma_client = chromadb.PersistentClient(
             path=data_dir,
             settings=Settings(
-                anonymized_telemetry=False,
+                # Telemetry is disabled via environment variables set above
+                # No need to explicitly set anonymized_telemetry here
                 allow_reset=True
             )
         )
