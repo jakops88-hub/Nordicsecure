@@ -219,7 +219,8 @@ class ServiceManager:
                 "backend.main:app",
                 host="127.0.0.1",
                 port=8000,
-                log_level="info"
+                log_level="info",
+                log_config=None  # Disable default logging config for PyInstaller
             )
             
         except Exception as e:
@@ -258,7 +259,6 @@ class ServiceManager:
                 "streamlit",
                 "run",
                 str(frontend_app),
-                "--server.port=8501",
                 "--server.address=127.0.0.1",
                 "--server.headless=true"
             ]
