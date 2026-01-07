@@ -7,7 +7,7 @@ Includes pandas, openpyxl, and all required services.
 
 import os
 import sys
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
 
 block_cipher = None
 
@@ -39,9 +39,66 @@ try:
 except Exception:
     pass
 
-# Include Streamlit data files
+# Include Streamlit data files and metadata
 try:
     datas += collect_data_files('streamlit')
+except Exception:
+    pass
+
+# Copy package metadata for packages that use importlib.metadata at runtime
+# This is required for streamlit and other packages that check their own version
+try:
+    datas += copy_metadata('streamlit')
+except Exception:
+    pass
+
+try:
+    datas += copy_metadata('altair')
+except Exception:
+    pass
+
+try:
+    datas += copy_metadata('pandas')
+except Exception:
+    pass
+
+try:
+    datas += copy_metadata('numpy')
+except Exception:
+    pass
+
+try:
+    datas += copy_metadata('pillow')
+except Exception:
+    pass
+
+try:
+    datas += copy_metadata('requests')
+except Exception:
+    pass
+
+try:
+    datas += copy_metadata('packaging')
+except Exception:
+    pass
+
+try:
+    datas += copy_metadata('click')
+except Exception:
+    pass
+
+try:
+    datas += copy_metadata('tornado')
+except Exception:
+    pass
+
+try:
+    datas += copy_metadata('protobuf')
+except Exception:
+    pass
+
+try:
+    datas += copy_metadata('pyarrow')
 except Exception:
     pass
 
