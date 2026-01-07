@@ -275,7 +275,9 @@ class ServiceManager:
                 str(frontend_app),
                 "--server.address=127.0.0.1",
                 "--server.port=8501",
-                # NOTE: We do NOT use --server.headless=true to allow browser opening
+                # NOTE: We do NOT use --server.headless=true to allow automatic browser opening.
+                # This means the browser will open automatically when Streamlit starts.
+                # Trade-off: If Streamlit restarts, it may open additional browser windows.
             ]
             
             logger.info(f"Starting Streamlit with command: {' '.join(streamlit_cmd)}")
