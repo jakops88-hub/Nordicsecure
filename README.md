@@ -285,6 +285,36 @@ After:  ਅਮਰੀਕ ਸਿੰਘ - ਪੰਜਾਬ ਦੀ ਇਤਿਹਾਸ
 
 For detailed documentation, see [GPU_AND_MULTILINGUAL_GUIDE.md](GPU_AND_MULTILINGUAL_GUIDE.md)
 
+## License Key Generator
+
+For administrators who need to generate license keys for customers, Nordic Secure includes a standalone license key generator tool.
+
+**Building the License Generator:**
+
+The repository includes a Windows batch script that builds `admin_keygen.py` into a standalone executable:
+
+```cmd
+# On Windows, simply double-click or run:
+build_keygen.bat
+```
+
+The script will:
+1. Check that PyInstaller is installed (install with `pip install pyinstaller` if needed)
+2. Build `admin_keygen.py` into a standalone executable
+3. Place the result in `dist\admin_keygen.exe`
+
+**Using the License Generator:**
+
+After building, simply double-click `dist\admin_keygen.exe` to launch the license key generator. The tool will prompt you for:
+- Customer name
+- Customer email
+- Company/Organization
+- License validity period (in days)
+
+The generated license key and customer details are automatically saved to `customer_db.csv` for record-keeping.
+
+**Note:** The license generator requires no external dependencies and can be distributed separately from the main application.
+
 ## License
 
 **Proprietary / Closed Source**
