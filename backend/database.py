@@ -23,6 +23,17 @@ Usage:
 import os
 import sys
 from pathlib import Path
+
+# Disable ChromaDB telemetry before importing chromadb
+# This prevents OpenTelemetry from registering atexit handlers
+# 
+# Defense-in-depth strategy (multiple layers):
+# Uses setdefault to allow earlier settings (hook-chromadb.py, main_launcher.py) to take precedence
+# This ensures telemetry is disabled even if this module is imported before main_launcher
+os.environ.setdefault("ANONYMIZED_TELEMETRY", "false")
+os.environ.setdefault("CHROMA_TELEMETRY", "false")
+os.environ.setdefault("OTEL_SDK_DISABLED", "true")
+
 import chromadb
 from chromadb.config import Settings
 from typing import Optional
@@ -78,7 +89,8 @@ def get_chroma_client() -> chromadb.PersistentClient:
         _chroma_client = chromadb.PersistentClient(
             path=data_dir,
             settings=Settings(
-                anonymized_telemetry=False,
+                # Telemetry is disabled via environment variables set above
+                # No need to explicitly set anonymized_telemetry here
                 allow_reset=True
             )
         )

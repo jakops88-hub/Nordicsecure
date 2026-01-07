@@ -50,6 +50,9 @@ except Exception:
 # which occurs because PyInstaller doesn't automatically bundle .dist-info directories
 # that contain the metadata files needed by importlib.metadata.version() and similar functions
 # 
+# IMPORTANT: Use package names (with dashes, e.g., 'pydantic-core') not module names
+# Package names are used by pip and stored in .dist-info directories
+# 
 # Core packages that definitely need metadata:
 # - streamlit: Main UI framework (causes the error)
 # - altair: Used by Streamlit for charts
@@ -62,6 +65,26 @@ metadata_packages = [
     'click',
     'tornado',
     'packaging',
+    # Add packages required by ChromaDB and OpenTelemetry
+    'chromadb',
+    'opentelemetry-api',
+    'opentelemetry-sdk',
+    'opentelemetry-exporter-otlp-proto-grpc',
+    'grpcio',
+    'pydantic',
+    'pydantic-core',
+    'protobuf',
+    'rich',
+    'watchdog',
+    'fastapi',
+    'uvicorn',
+    'starlette',
+    'anyio',
+    'httpcore',
+    'httpx',
+    'numpy',
+    'pandas',
+    'pyarrow',
 ]
 
 for package in metadata_packages:
@@ -89,6 +112,8 @@ if os.path.exists('bin'):
     datas += [('bin', 'bin')]
 
 # Collect all submodules for packages that use dynamic imports
+# IMPORTANT: Use Python module names (with underscores, e.g., 'pydantic_core') not package names
+# Module names are used in Python imports: import pydantic_core
 hiddenimports = [
     # FastAPI and related
     'uvicorn',
@@ -159,6 +184,30 @@ hiddenimports = [
     'pydantic',
     'pydantic_core',
     
+    # OpenTelemetry (required by ChromaDB)
+    # Only include public API modules to avoid breaking changes in private APIs
+    'opentelemetry',
+    'opentelemetry.sdk',
+    'opentelemetry.sdk.resources',
+    'opentelemetry.exporter.otlp.proto.grpc',
+    'opentelemetry.exporter.otlp.proto.grpc.exporter',
+    
+    # Concurrent futures (required by OpenTelemetry)
+    'concurrent.futures',
+    'concurrent.futures.thread',
+    'concurrent.futures.process',
+    
+    # gRPC (compiled C extension requires explicit private module hints for PyInstaller)
+    'grpc',
+    'grpc._channel',
+    'grpc._cython',
+    'grpc._cython.cygrpc',
+    
+    # Additional imports
+    'importlib.metadata',
+    'importlib.resources',
+    'importlib.resources.abc',
+    
     # Threading support
     'threading',
 ]
@@ -198,7 +247,10 @@ a = Analysis(
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[os.path.abspath('hook-streamlit.py')],
+    runtime_hooks=[
+        os.path.abspath('hook-streamlit.py'),
+        os.path.abspath('hook-chromadb.py')
+    ],
     excludes=[
         # Exclude unnecessary packages to reduce size
         'matplotlib',
