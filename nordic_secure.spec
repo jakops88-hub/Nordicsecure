@@ -51,11 +51,11 @@ except Exception:
 # that contain the metadata files needed by importlib.metadata.version() and similar functions
 # 
 # Core packages that definitely need metadata:
-# - streamlit: main UI framework (causes the error)
-# - altair: used by streamlit for charts
-# - click: used by streamlit CLI
-# - tornado: streamlit's web server
-# - packaging: used for version parsing
+# - streamlit: Main UI framework (causes the error)
+# - altair: Used by Streamlit for charts
+# - click: Used by Streamlit CLI
+# - tornado: Streamlit's web server
+# - packaging: Used for version parsing
 metadata_packages = [
     'streamlit',
     'altair',
