@@ -4,6 +4,8 @@
 [global]
 # Disable usage statistics collection
 gatherUsageStats = false
+# Disable development mode for production build
+developmentMode = false
 
 [server]
 # Server settings for headless operation
