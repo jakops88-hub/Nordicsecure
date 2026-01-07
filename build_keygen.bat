@@ -57,6 +57,12 @@ echo.
 echo [2/2] Klart!
 echo.
 
+REM Ta bort genererad spec-fil
+if exist "admin_keygen.spec" (
+    echo Tar bort genererad spec-fil...
+    del /f /q "admin_keygen.spec"
+)
+
 REM Kontrollera att filen skapades
 if not exist "dist\admin_keygen.exe" (
     echo FELMEDDELANDE: dist\admin_keygen.exe hittades inte!
@@ -74,8 +80,8 @@ echo EXE-filen finns nu här: dist\admin_keygen.exe
 echo.
 echo Dubbelklicka på filen för att generera licensnycklar!
 echo.
-echo OBS: Filen customer_db.csv kommer att skapas i samma
-echo      mapp där du kör admin_keygen.exe
+echo OBS: Filen customer_db.csv kommer att skapas i den mapp
+echo      där du startar admin_keygen.exe (arbetsmappen).
 echo.
 echo ============================================
 echo.
