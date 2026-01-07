@@ -50,6 +50,9 @@ except Exception:
 # which occurs because PyInstaller doesn't automatically bundle .dist-info directories
 # that contain the metadata files needed by importlib.metadata.version() and similar functions
 # 
+# IMPORTANT: Use package names (with dashes, e.g., 'pydantic-core') not module names
+# Package names are used by pip and stored in .dist-info directories
+# 
 # Core packages that definitely need metadata:
 # - streamlit: Main UI framework (causes the error)
 # - altair: Used by Streamlit for charts
@@ -109,6 +112,8 @@ if os.path.exists('bin'):
     datas += [('bin', 'bin')]
 
 # Collect all submodules for packages that use dynamic imports
+# IMPORTANT: Use Python module names (with underscores, e.g., 'pydantic_core') not package names
+# Module names are used in Python imports: import pydantic_core
 hiddenimports = [
     # FastAPI and related
     'uvicorn',

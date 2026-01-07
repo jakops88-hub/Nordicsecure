@@ -10,6 +10,11 @@ import sys
 
 # CRITICAL: Disable telemetry BEFORE importing any other packages
 # This prevents ChromaDB/OpenTelemetry from registering atexit handlers
+# 
+# Defense-in-depth strategy (multiple layers):
+# 1. hook-chromadb.py - Runs earliest, before PyInstaller bundle loads
+# 2. main_launcher.py (here) - Sets env vars immediately after os/sys imports
+# 3. backend/database.py - Uses setdefault before chromadb import
 os.environ["ANONYMIZED_TELEMETRY"] = "false"
 os.environ["CHROMA_TELEMETRY"] = "false"
 os.environ["OTEL_SDK_DISABLED"] = "true"
