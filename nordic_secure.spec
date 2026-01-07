@@ -46,7 +46,9 @@ except Exception:
     pass
 
 # Copy package metadata for packages that use importlib.metadata at runtime
-# This is required for streamlit and other packages that check their own version
+# This fixes "PackageNotFoundError: No package metadata was found for streamlit"
+# which occurs because PyInstaller doesn't automatically bundle .dist-info directories
+# that contain the metadata files needed by importlib.metadata.version() and similar functions
 try:
     datas += copy_metadata('streamlit')
 except Exception:
