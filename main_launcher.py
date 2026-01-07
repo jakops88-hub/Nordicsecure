@@ -281,16 +281,21 @@ class ServiceManager:
             logger.info(f"Starting Streamlit with command: {' '.join(streamlit_cmd)}")
             
             # Start Streamlit as a subprocess with a visible window
-            creation_flags = 0
             if sys.platform == "win32":
-                creation_flags = subprocess.CREATE_NEW_CONSOLE  # Open new console window on Windows
-            
-            self.streamlit_process = subprocess.Popen(
-                streamlit_cmd,
-                cwd=str(self.base_dir),
-                env=os.environ.copy(),
-                creationflags=creation_flags
-            )
+                # Open new console window on Windows
+                self.streamlit_process = subprocess.Popen(
+                    streamlit_cmd,
+                    cwd=str(self.base_dir),
+                    env=os.environ.copy(),
+                    creationflags=subprocess.CREATE_NEW_CONSOLE
+                )
+            else:
+                # On non-Windows platforms, don't use creationflags
+                self.streamlit_process = subprocess.Popen(
+                    streamlit_cmd,
+                    cwd=str(self.base_dir),
+                    env=os.environ.copy()
+                )
             
             logger.info(f"Streamlit process started with PID: {self.streamlit_process.pid}")
             
