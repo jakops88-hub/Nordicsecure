@@ -7,7 +7,7 @@ Includes pandas, openpyxl, and all required services.
 
 import os
 import sys
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
 
 block_cipher = None
 
@@ -39,11 +39,36 @@ try:
 except Exception:
     pass
 
-# Include Streamlit data files
+# Include Streamlit data files and metadata
 try:
     datas += collect_data_files('streamlit')
 except Exception:
     pass
+
+# Copy package metadata for packages that use importlib.metadata at runtime
+# This fixes "PackageNotFoundError: No package metadata was found for streamlit"
+# which occurs because PyInstaller doesn't automatically bundle .dist-info directories
+# that contain the metadata files needed by importlib.metadata.version() and similar functions
+# 
+# Core packages that definitely need metadata:
+# - streamlit: Main UI framework (causes the error)
+# - altair: Used by Streamlit for charts
+# - click: Used by Streamlit CLI
+# - tornado: Streamlit's web server
+# - packaging: Used for version parsing
+metadata_packages = [
+    'streamlit',
+    'altair',
+    'click',
+    'tornado',
+    'packaging',
+]
+
+for package in metadata_packages:
+    try:
+        datas += copy_metadata(package)
+    except Exception:
+        pass
 
 # Include Altair data files (used by Streamlit for charts)
 try:
