@@ -72,6 +72,7 @@ class ServiceManager:
         self.backend_thread: Optional[threading.Thread] = None
         self.frontend_thread: Optional[threading.Thread] = None
         self.ollama_process: Optional[subprocess.Popen] = None
+        self.streamlit_process: Optional[subprocess.Popen] = None
         self.shutdown_event = threading.Event()
         self.backend_should_stop = threading.Event()
         
@@ -164,34 +165,49 @@ class ServiceManager:
     def cleanup_processes(self):
         """
         Clean up all processes when shutting down.
-        Ensures Ollama and other processes are terminated properly.
+        Ensures Streamlit, Ollama and other processes are terminated properly.
         Can be called multiple times safely (idempotent).
         """
-        # Prevent duplicate cleanup
-        if self.ollama_process is None:
-            return
-            
         logger.info("Cleaning up processes...")
         
-        # Terminate Ollama process
-        try:
-            logger.info(f"Terminating Ollama process (PID: {self.ollama_process.pid})...")
-            self.ollama_process.terminate()
-            
-            # Wait for graceful shutdown
+        # Terminate Streamlit process
+        if hasattr(self, 'streamlit_process') and self.streamlit_process:
             try:
-                self.ollama_process.wait(timeout=5)
-                logger.info("Ollama process terminated gracefully")
-            except subprocess.TimeoutExpired:
-                logger.warning("Ollama process did not terminate gracefully, killing...")
-                self.ollama_process.kill()
-                self.ollama_process.wait()
-                logger.info("Ollama process killed")
-        except Exception as e:
-            logger.error(f"Error terminating Ollama process: {e}")
-        finally:
-            # Mark as cleaned up to prevent duplicate attempts
-            self.ollama_process = None
+                logger.info(f"Terminating Streamlit process (PID: {self.streamlit_process.pid})...")
+                self.streamlit_process.terminate()
+                try:
+                    self.streamlit_process.wait(timeout=5)
+                    logger.info("Streamlit process terminated gracefully")
+                except subprocess.TimeoutExpired:
+                    logger.warning("Streamlit process did not terminate gracefully, killing...")
+                    self.streamlit_process.kill()
+                    self.streamlit_process.wait()
+                    logger.info("Streamlit process killed")
+            except Exception as e:
+                logger.error(f"Error terminating Streamlit process: {e}")
+            finally:
+                self.streamlit_process = None
+        
+        # Terminate Ollama process
+        if self.ollama_process is not None:
+            try:
+                logger.info(f"Terminating Ollama process (PID: {self.ollama_process.pid})...")
+                self.ollama_process.terminate()
+                
+                # Wait for graceful shutdown
+                try:
+                    self.ollama_process.wait(timeout=5)
+                    logger.info("Ollama process terminated gracefully")
+                except subprocess.TimeoutExpired:
+                    logger.warning("Ollama process did not terminate gracefully, killing...")
+                    self.ollama_process.kill()
+                    self.ollama_process.wait()
+                    logger.info("Ollama process killed")
+            except Exception as e:
+                logger.error(f"Error terminating Ollama process: {e}")
+            finally:
+                # Mark as cleaned up to prevent duplicate attempts
+                self.ollama_process = None
         
         logger.info("Cleanup complete")
         
@@ -230,8 +246,8 @@ class ServiceManager:
     
     def start_frontend(self):
         """
-        Start the Streamlit frontend using streamlit.web.cli.main.
-        This is the proper way to start Streamlit programmatically.
+        Start the Streamlit frontend as a subprocess with visible console window.
+        This allows users to see Streamlit logs in real-time.
         """
         try:
             logger.info("Starting Streamlit frontend in subprocess...")
@@ -251,24 +267,36 @@ class ServiceManager:
                     f.write(f"\n[FRONTEND ERROR] app.py not found at {frontend_app}\n")
                 return
             
-            # Use Streamlit's CLI main function
-            from streamlit.web import cli as stcli
-            
-            # Set sys.argv for Streamlit CLI
-            sys.argv = [
-                "streamlit",
+            # Build command to run Streamlit
+            streamlit_cmd = [
+                sys.executable,  # Use same Python interpreter
+                "-m", "streamlit",
                 "run",
                 str(frontend_app),
                 "--server.address=127.0.0.1",
-                "--server.headless=true"
+                "--server.port=8501",
+                # NOTE: We do NOT use --server.headless=true to allow browser opening
             ]
             
-            # Run Streamlit
-            stcli.main()
+            logger.info(f"Starting Streamlit with command: {' '.join(streamlit_cmd)}")
             
-        except SystemExit as e:
-            # Streamlit calls sys.exit() when it shuts down normally
-            logger.info(f"Streamlit exited with code: {e.code}")
+            # Start Streamlit as a subprocess with a visible window
+            creation_flags = 0
+            if sys.platform == "win32":
+                creation_flags = subprocess.CREATE_NEW_CONSOLE  # Open new console window on Windows
+            
+            self.streamlit_process = subprocess.Popen(
+                streamlit_cmd,
+                cwd=str(self.base_dir),
+                env=os.environ.copy(),
+                creationflags=creation_flags
+            )
+            
+            logger.info(f"Streamlit process started with PID: {self.streamlit_process.pid}")
+            
+            # Wait for Streamlit process to finish
+            self.streamlit_process.wait()
+            
         except Exception as e:
             logger.error(f"Error in frontend: {e}", exc_info=True)
             with open("debug.log", "a") as f:
