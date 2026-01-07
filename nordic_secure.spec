@@ -85,13 +85,24 @@ metadata_packages = [
     'numpy',
     'pandas',
     'pyarrow',
+    # Add missing metadata packages for HTTP/networking
+    'requests',
+    'certifi',
+    'charset-normalizer',
+    'idna',
+    'urllib3',
+    # Add typing extensions and annotations
+    'typing-extensions',
+    'annotated-types',
 ]
 
+# Copy metadata with debug output to identify which packages succeed/fail
 for package in metadata_packages:
     try:
         datas += copy_metadata(package)
-    except Exception:
-        pass
+        print(f"✓ Copied metadata for {package}")
+    except Exception as e:
+        print(f"⚠ Could not copy metadata for {package}: {e}")
 
 # Include Altair data files (used by Streamlit for charts)
 try:
@@ -134,6 +145,11 @@ hiddenimports = [
     'streamlit.web.cli',
     'streamlit.runtime',
     'streamlit.runtime.scriptrunner',
+    'streamlit.runtime.scriptrunner.magic_funcs',
+    'streamlit.runtime.legacy_caching',
+    'streamlit.runtime.caching',
+    'streamlit.runtime.state',
+    'streamlit.runtime.uploaded_file_manager',
     
     # ChromaDB
     'chromadb',
