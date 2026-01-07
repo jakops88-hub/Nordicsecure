@@ -293,7 +293,7 @@ For administrators who need to generate license keys for customers, Nordic Secur
 
 The repository includes a Windows batch script that builds `admin_keygen.py` into a standalone executable:
 
-```bash
+```cmd
 # On Windows, simply double-click or run:
 build_keygen.bat
 ```
