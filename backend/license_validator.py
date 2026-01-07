@@ -9,6 +9,9 @@ from datetime import datetime
 from typing import Tuple
 
 # Shared secret salt for HMAC verification (must match admin_keygen.py)
+# SECURITY NOTE: In production, consider loading this from environment variables
+# or secure configuration to prevent exposure if source code is compromised.
+# For now, this is hardcoded per requirements for simplicity.
 SECRET_SALT = "NordicSecure_2026_HMAC_Secret_Salt_DO_NOT_SHARE"
 
 
@@ -60,7 +63,8 @@ def verify_license_key(key_string: str) -> Tuple[bool, str]:
         ).hexdigest()[:16]  # Take first 16 characters
         
         # Step 3: Check 1 - Anti-tamper check (signature match)
-        if calculated_signature != provided_signature:
+        # Use hmac.compare_digest for timing-safe comparison
+        if not hmac.compare_digest(calculated_signature, provided_signature):
             return (False, "Invalid license signature. License may be tampered or forged.")
         
         # Step 4: Check 2 - Expiration check
@@ -69,7 +73,8 @@ def verify_license_key(key_string: str) -> Tuple[bool, str]:
             expiry_date = datetime.strptime(expiry_date_str, "%Y%m%d")
             current_date = datetime.now()
             
-            if current_date > expiry_date:
+            # Compare dates only (not time) - license expires at end of expiry day
+            if current_date.date() > expiry_date.date():
                 return (False, f"License has expired on {expiry_date.strftime('%Y-%m-%d')}")
         
         except ValueError:

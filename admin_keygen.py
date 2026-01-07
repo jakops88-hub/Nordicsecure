@@ -12,6 +12,9 @@ from datetime import datetime, timedelta
 import re
 
 # Shared secret salt for HMAC signing (keep this secret!)
+# SECURITY NOTE: In production, consider loading this from environment variables
+# or secure configuration to prevent exposure if source code is compromised.
+# For now, this is hardcoded per requirements for simplicity.
 SECRET_SALT = "NordicSecure_2026_HMAC_Secret_Salt_DO_NOT_SHARE"
 
 
@@ -144,6 +147,9 @@ def main():
     if days_valid_input:
         try:
             days_valid = int(days_valid_input)
+            if days_valid <= 0:
+                print("Error: Days Valid must be a positive number")
+                return
         except ValueError:
             print("Error: Days Valid must be a number")
             return
