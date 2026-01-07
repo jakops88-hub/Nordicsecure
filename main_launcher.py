@@ -171,7 +171,7 @@ class ServiceManager:
         logger.info("Cleaning up processes...")
         
         # Terminate Streamlit process
-        if hasattr(self, 'streamlit_process') and self.streamlit_process:
+        if self.streamlit_process:
             try:
                 logger.info(f"Terminating Streamlit process (PID: {self.streamlit_process.pid})...")
                 self.streamlit_process.terminate()
