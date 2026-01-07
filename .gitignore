@@ -62,6 +62,9 @@ private_key.txt
 public_key.txt
 license_*.key
 
+# Customer database (contains sensitive customer data)
+customer_db.csv
+
 # ChromaDB data directory
 data/
 chroma_db/
