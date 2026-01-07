@@ -28,6 +28,7 @@ from pathlib import Path
 # This prevents OpenTelemetry from registering atexit handlers
 os.environ.setdefault("ANONYMIZED_TELEMETRY", "false")
 os.environ.setdefault("CHROMA_TELEMETRY", "false")
+os.environ.setdefault("OTEL_SDK_DISABLED", "true")
 
 import chromadb
 from chromadb.config import Settings
